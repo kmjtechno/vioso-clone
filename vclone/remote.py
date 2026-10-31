@@ -10,6 +10,9 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from .project import MissingInput, NotImplementedStep, Project, run_step
+from .script import ScriptError, parse_env, run_script
+
+_NEEDS_HARDWARE = "ERR not supported by clone (needs hardware)"
 
 
 class RemoteController:
@@ -17,6 +20,7 @@ class RemoteController:
         self.project = project
         self.base_dir = Path(base_dir)
         self._lock = threading.Lock()
+        self._running = False
 
     def _safe(self, name):
         root = self.base_dir.resolve()
@@ -26,15 +30,53 @@ class RemoteController:
         return p
 
     def handle(self, line):
-        parts = line.strip().split(None, 1)
+        line = line.strip()
+        parts = line.split(None, 1)
         if not parts:
             return "ERR empty command"
-        cmd, arg = parts[0].upper(), (parts[1].strip() if len(parts) > 1 else "")
         with self._lock:
             try:
+                if ".htm" in parts[0]:
+                    return self._url_dispatch(parts[0])
+                cmd, arg = parts[0].upper(), (parts[1].strip() if len(parts) > 1 else "")
                 return self._dispatch(cmd, arg)
-            except (MissingInput, ValueError, OSError, KeyError, TypeError, NotImplementedStep) as e:
+            except (MissingInput, ValueError, OSError, KeyError, TypeError, NotImplementedStep, ScriptError) as e:
                 return f"ERR {e}"
+
+    def _url_dispatch(self, target):
+        """URL-style commands: page.htm?key=value&key2=..., as in the original's remote interface."""
+        u = urlparse(target)
+        page = u.path.lstrip("/").lower()
+        q = parse_qs(u.query, keep_blank_values=True)
+        if page == "control.htm":
+            if "save" in q:
+                if self.project is None:
+                    return "ERR no project"
+                self.project.save(self._safe(q["save"][0]))
+                return "OK saved"
+            return _NEEDS_HARDWARE if q else "ERR missing command"
+        if page == "script.htm":
+            if "status" in q:
+                return "OK running" if self._running else "OK idle"
+            if "abort" in q:
+                return "OK nothing running"
+            if "execute" in q:
+                f = self._safe(q["execute"][0])
+                if not f.is_file():
+                    return f"ERR file not found: {q['execute'][0]}"
+                env = parse_env(";".join(q.get("param", [])))
+                self._running = True
+                try:
+                    ctx = run_script(f.read_text(encoding="utf-8"), env=env, project=self.project,
+                                     base_dir=self.base_dir)
+                finally:
+                    self._running = False
+                self.project = ctx.project
+                return "OK executed"
+            return "ERR unknown script command"
+        if page in ("info.htm", "model3d.htm"):
+            return _NEEDS_HARDWARE
+        return f"ERR unknown page {page}"
 
     def _dispatch(self, cmd, arg):
         if cmd == "PING":
@@ -76,19 +118,35 @@ class RemoteServer:
         class Tcp(socketserver.StreamRequestHandler):
             def handle(self):
                 for raw in self.rfile:
-                    self.wfile.write((ctl.handle(raw.decode("utf-8", "replace")) + "\n").encode())
+                    line = raw.decode("utf-8", "replace")
+                    if line.startswith("GET "):
+                        return self._http(line)
+                    self.wfile.write((ctl.handle(line) + "\n").encode())
+
+            def _http(self, request_line):
+                for hdr in self.rfile:  # consume headers up to the blank line
+                    if not hdr.strip():
+                        break
+                bits = request_line.split()
+                reply = ctl.handle(bits[1].lstrip("/")) if len(bits) > 1 else "ERR bad request"
+                body = (reply + "\n").encode()
+                status = "200 OK" if reply.startswith("OK") else "400 Bad Request"
+                self.wfile.write(f"HTTP/1.1 {status}\r\nContent-Type: text/plain; charset=utf-8\r\n"
+                                 f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n".encode() + body)
 
         class Udp(socketserver.BaseRequestHandler):
             def handle(self):
-                data, sock = self.request
-                sock.sendto((ctl.handle(data.decode("utf-8", "replace")) + "\n").encode(), self.client_address)
+                ctl.handle(self.request[0].decode("utf-8", "replace"))  # fire-and-forget: no reply
 
         class Http(BaseHTTPRequestHandler):
             def do_GET(self):
                 u = urlparse(self.path)
-                if u.path != "/control.htm":
+                if u.path.endswith(".htm") and u.path != "/control.htm" or (u.path == "/control.htm" and "cmd" not in u.query):
+                    reply = ctl.handle(self.path.lstrip("/"))
+                elif u.path == "/control.htm":
+                    reply = ctl.handle(parse_qs(u.query).get("cmd", [""])[0])
+                else:
                     return self._send(404, "ERR not found")
-                reply = ctl.handle(parse_qs(u.query).get("cmd", [""])[0])
                 self._send(200 if reply.startswith("OK") else 400, reply)
 
             def _send(self, code, text):
