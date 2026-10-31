@@ -25,7 +25,7 @@ def parse(argv: list[str]) -> CmdLine:
         if not a.startswith("/") or len(a) < 2:
             raise ValueError(f"bad argument: {a!r}")
         key, sep, val = a[1:].partition(":")
-        val = val.strip('"')
+        val = val.strip().strip('"').strip()
         if key == "H":  # value optional
             out.values["script_host"] = val or True
         elif key in _FLAGS and not sep:
@@ -33,14 +33,16 @@ def parse(argv: list[str]) -> CmdLine:
         elif key in _VALUES and sep:
             if key == "Q":
                 step, _, opt = val.partition(";")
+                step = step.strip()
                 if step not in STEPS:
                     raise ValueError(f"unknown step: {step!r}")
                 out.values["step"] = step
-                if opt:
-                    k, _, v = opt.partition("=")
-                    if k.lower() != "closeafter" or v.lower() not in ("yes", "no"):
-                        raise ValueError(f"bad option: {opt!r}")
-                    out.close_after = v.lower() == "yes"
+                for item in filter(None, (t.strip() for t in opt.split(";"))):
+                    k, _, v = item.partition("=")
+                    k, v = k.strip().lower(), v.strip().lower()
+                    if k != "closeafter" or v not in ("yes", "no"):
+                        raise ValueError(f"bad option: {item!r}")
+                    out.close_after = v == "yes"
             elif key in ("D", "J", "Lang"):
                 out.values[_VALUES[key]] = int(val)
             else:
