@@ -19,7 +19,18 @@ def main(argv=None):
     d.add_argument("--file", default=str(DEPLOY / "SPDevices.ini"))
     c = sub.add_parser("spaces", help="list content spaces")
     c.add_argument("--file", default=str(DEPLOY / "SPContentSpaces.ini"))
+    v = sub.add_parser("preview", help="software-render content through a calibrated project mesh")
+    v.add_argument("project")
+    v.add_argument("content")
+    v.add_argument("out")
     a = ap.parse_args(argv)
+    if a.cmd == "preview":
+        try:
+            project.render_preview(project.Project.load(a.project), a.content, a.out)
+        except (project.MissingInput, OSError, ValueError) as e:
+            print(f"preview failed: {e}", file=sys.stderr)
+            return 2
+        return 0
     if a.cmd == "devices":
         for cam in configs.load_devices(a.file):
             print(f"{cam.name} | {cam.width}x{cam.height} f=({cam.fx},{cam.fy})")

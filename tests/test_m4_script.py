@@ -126,3 +126,21 @@ def test_malformed_xml():
         script.run_script("<VIOSO><task></VIOSO>")
     with pytest.raises(script.ScriptError):
         script.run_script("<root/>")
+
+
+def test_execute_preview_renders_project_mesh(tmp_path):
+    import cv2
+    import numpy as np
+    xs, ys = np.meshgrid(np.linspace(0, 59, 5), np.linspace(0, 39, 4))
+    p = Project("p")
+    p.scan = {"proj_size": [60, 40]}
+    p.result = {"mesh": np.stack([xs, ys], -1).tolist()}
+    cv2.imwrite(str(tmp_path / "c.png"), np.full((40, 60, 3), 90, np.uint8))
+    xml = wrap('<task action="Execute" typ="Preview"><param content="c.png" out="o.png"/></task>')
+    script.run_script(xml, project=p, base_dir=tmp_path)
+    assert (tmp_path / "o.png").is_file()
+    with pytest.raises(script.ScriptError):
+        script.run_script(xml, project=Project("q"), base_dir=tmp_path)
+    with pytest.raises(script.ScriptError):
+        script.run_script(wrap('<task action="Execute" typ="Preview"><param out="o.png"/></task>'),
+                          project=p, base_dir=tmp_path)
