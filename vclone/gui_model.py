@@ -2,7 +2,7 @@
 from pathlib import Path
 
 from .cmdline import STEPS
-from .project import _IMPL, MissingInput, NotImplementedStep, Project, run_step
+from .project import _IMPL, _licensing, MissingInput, NotImplementedStep, Project, run_step
 
 
 class SessionError(Exception):
@@ -45,7 +45,7 @@ class Session:
 
     def steps(self):
         """[(step name, implemented)] in command-line order."""
-        return [(s, s in _IMPL) for s in sorted(STEPS)]
+        return [(s, s in _IMPL and _IMPL[s] is not _licensing) for s in sorted(STEPS)]
 
     def run(self, step):
         try:

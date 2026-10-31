@@ -39,7 +39,7 @@ def test_step_availability_reports_unimplemented():
     s = Session()
     avail = dict(s.steps())
     assert avail["Calibrate"] is True and avail["Export"] is True
-    assert avail["Design"] is False
+    assert avail["Activate"] is False
 
 
 def test_run_step_errors_are_reported_not_faked():
@@ -47,7 +47,7 @@ def test_run_step_errors_are_reported_not_faked():
     with pytest.raises(SessionError, match="missing"):
         s.run("Calibrate")
     with pytest.raises(SessionError, match="not implemented"):
-        s.run("Design")
+        s.run("Activate")
     assert s.project.steps_done == [] and "Calibrate" not in s.log[-1]
 
 
@@ -66,6 +66,6 @@ def test_qt_window_smoke():
     app = QApplication.instance() or QApplication([])
     w = MainWindow(Session(Project("smoke")))
     assert "smoke" in w.windowTitle()
-    assert {b.text() for b in w.step_buttons} >= {"Calibrate", "Export", "Design"}
-    assert not w.step_buttons[[b.text() for b in w.step_buttons].index("Design")].isEnabled()
+    assert {b.text() for b in w.step_buttons} >= {"Calibrate", "Export", "Activate"}
+    assert not w.step_buttons[[b.text() for b in w.step_buttons].index("Activate")].isEnabled()
     w.close()

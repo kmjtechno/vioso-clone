@@ -85,6 +85,6 @@ def test_project_roundtrip_and_step_stubs(tmp_path):
             project.run_step(p, step)
     with pytest.raises(ValueError):
         project.run_step(p, "Bogus")
-    assert project.run_cmdline(cmdline.parse(['/Q:"Design"'])) == 2
+    assert project.run_cmdline(cmdline.parse(['/Q:"Activate"'])) == 2
     assert project.run_cmdline(cmdline.parse(['/Q:"Export"'])) == 3
     assert project.run_cmdline(cmdline.parse(["/V"])) == 0
