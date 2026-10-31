@@ -8,7 +8,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from . import calib
+from . import calib, render
 from .cmdline import STEPS, CmdLine
 from .configs import CameraIntrinsics
 
@@ -77,6 +77,22 @@ def _export(project: Project) -> None:
         raise MissingInput("nothing to export: run Calibrate first")
     out = Path(project.scan.get("out") or Path(project.scan.get("dir", ".")) / "warp.json")
     out.write_text(json.dumps({"name": project.name, **project.result}), encoding="utf-8")
+
+
+def render_preview(project: Project, content_path, out_path) -> None:
+    """Warp a content image through the calibrated mesh into a projector-resolution PNG (CPU, no display)."""
+    if not project.result.get("mesh") or "proj_size" not in project.scan:
+        raise MissingInput("nothing to render: run Calibrate first")
+    img = cv2.imread(str(content_path), cv2.IMREAD_COLOR)
+    if img is None:
+        raise MissingInput(f"cannot read content image: {content_path}")
+    nan2 = [float("nan")] * 2
+    mesh = np.array([[nan2 if n is None else [float("nan") if v is None else v for v in n] for n in row]
+                     for row in project.result["mesh"]], dtype=np.float64)  # unobserved nodes -> NaN
+    w, h = project.scan["proj_size"]
+    if not cv2.imwrite(str(out_path), render.render_projector(img, mesh, (w, h))):
+        raise MissingInput(f"cannot write preview: {out_path}")
+
 
 
 def _design(project: Project) -> None:
