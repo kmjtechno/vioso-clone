@@ -35,3 +35,16 @@ def test_preview_needs_calibration_and_content(tmp_path):
         render_preview(Project("p"), tmp_path / "c.png", tmp_path / "o.png")
     with pytest.raises(MissingInput):
         render_preview(_proj(60, 40), tmp_path / "missing.png", tmp_path / "o.png")
+
+
+def test_cli_preview_subcommand(tmp_path):
+    import cv2
+    from vclone.__main__ import main
+    p = _proj(60, 40)
+    pf = tmp_path / "p.json"
+    p.save(pf)
+    cv2.imwrite(str(tmp_path / "c.png"), np.full((40, 60, 3), 90, np.uint8))
+    out = tmp_path / "o.png"
+    assert main(["preview", str(pf), str(tmp_path / "c.png"), str(out)]) == 0
+    assert out.is_file()
+    assert main(["preview", str(pf), str(tmp_path / "missing.png"), str(out)]) == 2
