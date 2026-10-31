@@ -10,7 +10,7 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .project import MissingInput, NotImplementedStep, Project, run_step
+from .project import MissingInput, NotImplementedStep, Project, render_preview, run_step
 
 ACTIONS = {"condition", "configure", "connect", "control", "create", "destroy", "destroyall", "disconnect",
            "execute", "ipc", "load", "manipulate", "playlist", "refresh", "refreshall", "render", "recover",
@@ -146,11 +146,25 @@ def _exec_step(task, defines, ctx, typ, sub):
         raise UnsupportedAction(str(e)) from e
 
 
+def _exec_preview(task, defines, ctx, typ, sub):
+    """Clone extension: software preview of the calibrated mesh (no display output)."""
+    params = _params(task, defines, ctx)
+    content, out = _need(params, "content", "Execute preview"), _need(params, "out", "Execute preview")
+    if ctx.project is None:
+        raise ScriptError("no project loaded")
+    try:
+        render_preview(ctx.project, _path(ctx, content), _path(ctx, out))
+    except MissingInput as e:
+        raise ScriptError(str(e)) from e
+
+
 def _execute(task, defines, ctx, typ, sub):
     if typ in ("timer", "sleep"):
         return _timer(task, defines, ctx, typ, sub)
     if typ == "file" and sub == "script":
         return _exec_script(task, defines, ctx, typ, sub)
+    if typ == "preview":
+        return _exec_preview(task, defines, ctx, typ, sub)
     if typ == "step":
         return _exec_step(task, defines, ctx, typ, sub)
     raise UnsupportedAction(f"Execute {typ}/{sub} is not supported")
