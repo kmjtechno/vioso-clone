@@ -80,10 +80,11 @@ def test_project_roundtrip_and_step_stubs(tmp_path):
     p = project.Project("demo", cam, "cs", [{"name": "d"}], ["Design"])
     p.save(tmp_path / "p.json")
     assert project.Project.load(tmp_path / "p.json") == p
-    for step in cmdline.STEPS:
+    for step in cmdline.STEPS - set(project._IMPL):
         with pytest.raises(project.NotImplementedStep):
             project.run_step(p, step)
     with pytest.raises(ValueError):
         project.run_step(p, "Bogus")
-    assert project.run_cmdline(cmdline.parse(['/Q:"Export"'])) == 2
+    assert project.run_cmdline(cmdline.parse(['/Q:"Design"'])) == 2
+    assert project.run_cmdline(cmdline.parse(['/Q:"Export"'])) == 3
     assert project.run_cmdline(cmdline.parse(["/V"])) == 0
