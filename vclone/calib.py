@@ -91,11 +91,44 @@ def proj_to_cam_mesh(dec: Decoded, proj_size, nodes=(17, 9), radius: int = 12, m
     return out
 
 
-def cam_to_content_homography(cam_pts, content_pts):
-    """Homography from >=4 camera points to content-space points (e.g. screen corners)."""
-    H, _ = cv2.findHomography(np.asarray(cam_pts, np.float64), np.asarray(content_pts, np.float64), 0)
-    if H is None:
-        raise ValueError("degenerate correspondences")
+def _check_spread(pts, label, min_area_fraction):
+    """Reject collinear or clustered point sets: convex-hull area vs bounding-box area."""
+    span = pts.max(0) - pts.min(0)
+    bbox = float(span[0] * span[1])
+    hull = cv2.contourArea(cv2.convexHull(pts.astype(np.float32))) if len(pts) >= 3 else 0.0
+    if bbox <= 0 or hull < min_area_fraction * bbox:
+        raise ValueError(f"degenerate geometry: {label} points collinear or clustered")
+
+
+def cam_to_content_homography(cam_pts, content_pts, max_rms=1.0, min_area_fraction=0.02):
+    """Homography from >=4 camera points to content-space points (e.g. screen corners).
+
+    Fails closed (ValueError) instead of returning a guessed fit: too few or mismatched
+    points, non-finite values, collinear/clustered geometry on either side, a fit that sends
+    an input point through infinity, or reprojection RMS above `max_rms` (content units).
+    """
+    cam = np.asarray(cam_pts, np.float64).reshape(-1, 2)
+    con = np.asarray(content_pts, np.float64).reshape(-1, 2)
+    if len(cam) != len(con):
+        raise ValueError("camera and content need the same number of points")
+    if len(cam) < 4:
+        raise ValueError("need at least 4 correspondences")
+    if not (np.isfinite(cam).all() and np.isfinite(con).all()):
+        raise ValueError("non-finite correspondence")
+    _check_spread(cam, "camera", min_area_fraction)
+    _check_spread(con, "content", min_area_fraction)
+    H, _ = cv2.findHomography(cam, con, 0)
+    if H is None or not np.isfinite(H).all() or abs(H[2, 2]) < 1e-12:
+        raise ValueError("degenerate geometry: no valid homography")
+    H = H / H[2, 2]
+    w = cam @ H[2, :2] + H[2, 2]
+    w = w * np.sign(w[np.argmax(np.abs(w))])  # all points must sit on one side of the horizon
+    if not (w > 1e-9 * np.abs(w).max()).all():
+        raise ValueError("degenerate geometry: a point maps through infinity")
+    proj = cv2.perspectiveTransform(cam.reshape(-1, 1, 2), H).reshape(-1, 2)
+    rms = float(np.sqrt(np.mean(np.sum((proj - con) ** 2, axis=1))))
+    if not rms <= max_rms:
+        raise ValueError(f"reprojection RMS {rms:.3f} exceeds gate {max_rms}")
     return H
 
 
