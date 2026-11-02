@@ -132,6 +132,95 @@ def cam_to_content_homography(cam_pts, content_pts, max_rms=1.0, min_area_fracti
     return H
 
 
+@dataclass
+class PlaneFit:
+    h: np.ndarray        # camera -> projector homography, h[2, 2] == 1
+    rms_px: float        # reprojection RMS over `indices`
+    indices: list        # indices into the input correspondences
+
+
+@dataclass
+class MultiPlane:
+    planes: list         # PlaneFit, largest support first
+    unassigned: list     # indices that fit no accepted plane (never forced into one)
+
+
+def _side(H, cam):
+    """+1/-1: which side of the horizon line the points sit on (they must all agree)."""
+    w = cam @ H[2, :2] + H[2, 2]
+    return 1.0 if w[np.argmax(np.abs(w))] > 0 else -1.0
+
+
+def _inliers(H, side, cam, prj, pool, tol):
+    c = cam[pool]
+    w = (c @ H[2, :2] + H[2, 2]) * side
+    ok = w > 1e-9
+    err = np.full(len(pool), np.inf)
+    if ok.any():
+        q = cv2.perspectiveTransform(c[ok].reshape(-1, 1, 2), H).reshape(-1, 2)
+        err[ok] = np.linalg.norm(q - prj[pool][ok], axis=1)
+    return pool[err <= tol]
+
+
+def fit_planes(cam_pts, proj_pts, *, min_plane_points=12, inlier_tol_px=1.0, max_planes=4,
+               iterations=400, seed=12345, max_rms=1.0, min_area_fraction=0.02):
+    """Split camera->projector correspondences that lie on several planar surfaces into one
+    homography per plane (sequential RANSAC). Deterministic for a given seed.
+
+    Every accepted plane passes the same gates as cam_to_content_homography; points that fit
+    no accepted plane are returned as `unassigned`, never forced into a plane. Raises
+    ValueError on too few/mismatched/non-finite input or when no plane has enough support.
+    Port of the algorithm in the user's own KMJ CalibrationNew multiplane code.
+    """
+    cam = np.asarray(cam_pts, np.float64).reshape(-1, 2)
+    prj = np.asarray(proj_pts, np.float64).reshape(-1, 2)
+    if len(cam) != len(prj):
+        raise ValueError("camera and projector need the same number of points")
+    need = max(int(min_plane_points), 4)
+    if len(cam) < need:
+        raise ValueError("too few correspondences for a plane")
+    if not (np.isfinite(cam).all() and np.isfinite(prj).all()):
+        raise ValueError("non-finite correspondence")
+
+    rng = np.random.default_rng(seed)
+    pool = np.arange(len(cam))
+    planes = []
+    while len(planes) < max_planes and len(pool) >= need:
+        best = np.empty(0, int)
+        for _ in range(iterations):
+            pick = rng.choice(pool, 4, replace=False)
+            try:  # minimal samples fit exactly, so only the geometry gates apply here
+                H = cam_to_content_homography(cam[pick], prj[pick], max_rms=1e9,
+                                              min_area_fraction=min_area_fraction)
+            except ValueError:
+                continue
+            inl = _inliers(H, _side(H, cam[pick]), cam, prj, pool, inlier_tol_px)
+            if len(inl) > len(best):
+                best = inl
+        if len(best) < need:
+            break
+        try:  # refit on the consensus set with the full gates
+            H = cam_to_content_homography(cam[best], prj[best], max_rms=max_rms,
+                                          min_area_fraction=min_area_fraction)
+        except ValueError:
+            break
+        inl = _inliers(H, _side(H, cam[best]), cam, prj, pool, inlier_tol_px)
+        if len(inl) < need:
+            break
+        proj = cv2.perspectiveTransform(cam[inl].reshape(-1, 1, 2), H).reshape(-1, 2)
+        rms = float(np.sqrt(np.mean(np.sum((proj - prj[inl]) ** 2, axis=1))))
+        # Reclassification can add points not present in the gated refit set.
+        # Never publish an expanded consensus whose actual RMS violates the gate.
+        if not np.isfinite(rms) or rms > max_rms:
+            break
+        planes.append(PlaneFit(H, rms, sorted(int(i) for i in inl)))
+        pool = np.setdiff1d(pool, inl)
+    if not planes:
+        raise ValueError("no plane with enough consistent support")
+    planes.sort(key=lambda p: -len(p.indices))
+    return MultiPlane(planes, [int(i) for i in pool])
+
+
 def warp_mesh(cam_mesh, H):
     """Map camera-space node positions into content space: (ny, nx, 2), NaN preserved."""
     flat = cam_mesh.reshape(-1, 1, 2)
