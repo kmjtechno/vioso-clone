@@ -10,6 +10,20 @@ import cv2
 import numpy as np
 
 
+def _pos_int(v) -> bool:
+    return isinstance(v, (int, np.integer)) and not isinstance(v, bool) and v > 0
+
+
+def _check_pair(value, label, minimum=1):
+    try:
+        ok = len(value) == 2 and all(_pos_int(v) and v >= minimum for v in value)
+    except TypeError:
+        ok = False
+    if not ok:
+        raise ValueError(f"{label} must be two integers >= {minimum}: {value!r}")
+    return int(value[0]), int(value[1])
+
+
 def _nbits(n: int) -> int:
     return max(1, int(np.ceil(np.log2(n))))
 
@@ -38,12 +52,16 @@ class Decoded:
 
 def decode_graycode(captures, inverses, proj_size, margin: int = 20) -> Decoded:
     """captures/inverses: camera images (gray or BGR) for each pattern/inverse in graycode order."""
-    w, h = proj_size
+    w, h = _check_pair(proj_size, "proj_size")
+    if isinstance(margin, bool) or not isinstance(margin, (int, float)) or not np.isfinite(margin) or margin < 0:
+        raise ValueError(f"margin must be a finite number >= 0: {margin!r}")
     nx, ny = _nbits(w), _nbits(h)
     if len(captures) != nx + ny or len(inverses) != len(captures):
         raise ValueError(f"need {nx + ny} pattern/inverse pairs")
     gray = lambda im: im if im.ndim == 2 else cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
     shape = gray(captures[0]).shape
+    if any(gray(im).shape != shape for im in list(captures) + list(inverses)):
+        raise ValueError("all captures and inverses must have the same shape")
     valid = np.ones(shape, bool)
     bits = []
     for c, i in zip(captures, inverses):
@@ -72,11 +90,15 @@ def proj_to_cam_mesh(dec: Decoded, proj_size, nodes=(17, 9), radius: int = 12, m
     Per node, fits an affine map (projector -> camera) to the decoded pixels within `radius`
     and evaluates it at the node, so border nodes are not biased by one-sided windows.
     """
-    w, h = proj_size
+    w, h = _check_pair(proj_size, "proj_size")
+    gx, gy = _check_pair(nodes, "nodes", minimum=2)
+    if isinstance(radius, bool) or not isinstance(radius, (int, float)) or not np.isfinite(radius) or radius <= 0:
+        raise ValueError(f"radius must be a finite number > 0: {radius!r}")
+    if not _pos_int(min_pixels) or min_pixels < 3:
+        raise ValueError(f"min_pixels must be an integer >= 3 (affine fit): {min_pixels!r}")
     cy, cx = np.nonzero(dec.valid)
     ppx, ppy = dec.px[cy, cx].astype(np.float64), dec.py[cy, cx].astype(np.float64)
     cam = np.stack([cx, cy], 1).astype(np.float64)
-    gx, gy = nodes
     out = np.full((gy, gx, 2), np.nan)
     for j, y in enumerate(np.linspace(0, h - 1, gy)):
         for i, x in enumerate(np.linspace(0, w - 1, gx)):
