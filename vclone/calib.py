@@ -209,6 +209,10 @@ def fit_planes(cam_pts, proj_pts, *, min_plane_points=12, inlier_tol_px=1.0, max
             break
         proj = cv2.perspectiveTransform(cam[inl].reshape(-1, 1, 2), H).reshape(-1, 2)
         rms = float(np.sqrt(np.mean(np.sum((proj - prj[inl]) ** 2, axis=1))))
+        # Reclassification can add points not present in the gated refit set.
+        # Never publish an expanded consensus whose actual RMS violates the gate.
+        if not np.isfinite(rms) or rms > max_rms:
+            break
         planes.append(PlaneFit(H, rms, sorted(int(i) for i in inl)))
         pool = np.setdiff1d(pool, inl)
     if not planes:
