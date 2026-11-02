@@ -68,6 +68,39 @@ def test_homography_and_warp_mesh_nan_preserved():
         calib.cam_to_content_homography([(0, 0)] * 4, content)
 
 
+@pytest.mark.parametrize("cam,content,why", [
+    ([(0, 0), (1, 1), (2, 2), (3, 3)], [(0, 0), (1, 0), (1, 1), (0, 1)], "camera"),
+    ([(0, 0), (1, 0), (1, 1), (0, 1)], [(0, 0), (5, 0), (10, 0), (20, 0)], "content"),
+    ([(0, 0), (1, 0), (1, 1), (np.nan, 1)], [(0, 0), (1, 0), (1, 1), (0, 1)], "non-finite"),
+    ([(0, 0), (1, 0), (1, 1)], [(0, 0), (1, 0), (1, 1)], "4"),
+    ([(0, 0), (1, 0), (1, 1), (0, 1)], [(0, 0), (1, 0), (1, 1)], "same number"),
+    # twisted corner order: the fit exists but sends part of the quad through infinity
+    ([(0, 0), (100, 0), (100, 50), (0, 50)], [(0, 0), (1000, 0), (0, 500), (1000, 500)], "infinity"),
+])
+def test_homography_rejects_degenerate_input(cam, content, why):
+    # A garbage H here would silently produce a wrong warp mesh; it must fail closed.
+    with pytest.raises(ValueError, match=why):
+        calib.cam_to_content_homography(cam, content)
+
+
+def test_homography_accepts_points_beyond_origin_horizon():
+    # Valid projective quad whose horizon line separates the points from the origin.
+    Ht = np.array([[1.0, 0.2, 5.0], [0.1, 1.0, 3.0], [-0.01, 0.0, 1.0]])
+    cam = np.array([(200, 0), (300, 0), (300, 100), (200, 100), (250, 40)], np.float64)
+    content = cv2.perspectiveTransform(cam.reshape(-1, 1, 2), Ht).reshape(-1, 2)
+    H = calib.cam_to_content_homography(cam, content)
+    assert np.allclose(cv2.perspectiveTransform(cam.reshape(-1, 1, 2), H).reshape(-1, 2), content, atol=1e-6)
+
+
+def test_homography_rejects_inconsistent_points():
+    cam = [(0, 0), (100, 0), (100, 50), (0, 50), (50, 25)]
+    content = [(0, 0), (1000, 0), (1000, 500), (0, 500), (900, 50)]  # 5th point off by ~450 px
+    with pytest.raises(ValueError, match="reprojection"):
+        calib.cam_to_content_homography(cam, content)
+    H = calib.cam_to_content_homography(cam, content, max_rms=1e9)
+    assert H.shape == (3, 3)
+
+
 def test_edge_blend_overlap_sums_to_one():
     a = np.zeros((20, 100), bool)
     a[:, :60] = True
