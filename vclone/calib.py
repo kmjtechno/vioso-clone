@@ -249,6 +249,15 @@ def edge_blend_weights(masks, gamma: float = 2.2):
     Weight = distance to the projector's own edge; normalised so overlaps sum to 1 (before gamma).
     Returns (alphas, linear_weights).
     """
+    if isinstance(gamma, bool) or not isinstance(gamma, (int, float)) or not np.isfinite(gamma) or gamma <= 0:
+        raise ValueError(f"gamma must be a finite positive number: {gamma!r}")
+    masks = [np.asarray(m) for m in masks]
+    if not masks:
+        raise ValueError("need at least one mask")
+    if any(m.ndim != 2 for m in masks):
+        raise ValueError("every mask must be 2-D")
+    if any(m.shape != masks[0].shape for m in masks):
+        raise ValueError("all masks must have the same shape")
     dist = [cv2.distanceTransform(m.astype(np.uint8), cv2.DIST_L2, 3) for m in masks]
     total = np.sum(dist, axis=0)
     lin = [np.divide(d, total, out=np.zeros_like(d), where=total > 0).astype(np.float32) for d in dist]
