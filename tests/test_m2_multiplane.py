@@ -96,3 +96,21 @@ def test_collinear_points_never_become_a_plane():
     prj = np.column_stack([2 * t, t])
     with pytest.raises(ValueError, match="no plane"):
         calib.fit_planes(cam, prj)
+
+
+def test_reported_plane_cannot_exceed_configured_rms_gate():
+    # A refit can enlarge its consensus set. Every returned plane, including
+    # those extra inliers, must satisfy the caller's requested RMS limit.
+    rng = np.random.default_rng(1)
+    cam = rng.uniform(100, 600, (30, 2))
+    truth = np.array([[1.03, 0.02, 40], [-0.02, 1.01, 12], [0.00002, -0.00005, 1]])
+    prj = _apply(truth, cam)
+    prj[:25] += rng.normal(0, 0.004, (25, 2))
+    prj[25:] += rng.normal(0, 0.3, (5, 2))
+    try:
+        result = calib.fit_planes(cam, prj, iterations=40, max_rms=0.05,
+                                  inlier_tol_px=0.2, max_planes=1)
+    except ValueError:
+        return  # Fail-closed rejection is permitted for a strict requested gate.
+    assert result.planes
+    assert all(p.rms_px <= 0.05 for p in result.planes)
