@@ -59,11 +59,24 @@ def view_tilts_deg(rvecs):
 
 
 def coverage_fraction(image_points, size):
+    """Count only finite, actually visible image points in the coverage grid.
+
+    Off-screen pixels must never be clamped to an edge cell: this would let a
+    completely invalid calibration falsely pass the minimum coverage gate.
+    """
+    dimensions = np.asarray(size, dtype=np.float64)
+    if dimensions.shape != (2,) or not np.isfinite(dimensions).all() or np.any(dimensions <= 0):
+        raise ValueError("positive finite image dimensions required")
+    width, height = dimensions
     hit = set()
     for v in image_points:
-        for x, y in np.asarray(v, np.float64).reshape(-1, 2):
-            hit.add((int(min(max(x, 0), size[0] - 1) * GRID_COLS / size[0]),
-                     int(min(max(y, 0), size[1] - 1) * GRID_ROWS / size[1])))
+        points = np.asarray(v, dtype=np.float64).reshape(-1, 2)
+        for x, y in points:
+            if not (np.isfinite(x) and np.isfinite(y)
+                    and 0 <= x < width and 0 <= y < height):
+                continue
+            hit.add((min(GRID_COLS - 1, int(x * GRID_COLS / width)),
+                     min(GRID_ROWS - 1, int(y * GRID_ROWS / height))))
     return len(hit) / float(GRID_COLS * GRID_ROWS)
 
 
