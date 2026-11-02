@@ -64,3 +64,30 @@ def test_checked_returns_profile_when_gates_pass():
     objs, imgs = _views(16, tilt=0.6, spread=160.0)
     est, rms = intrinsics.calibrate_checked(objs, imgs, SIZE)
     assert est.width == 1280 and rms < 0.1
+
+def test_coverage_excludes_fully_offscreen_points():
+    # P0 regression: clamping y=-50 and y=1010 to frame edges once
+    # produced 8/12 = 66.7% coverage although all pixels were off-screen.
+    points = np.array([(x, y) for x in (160, 480, 800, 1120)
+                       for y in (-50, 1010)], dtype=np.float64)
+    assert intrinsics.coverage_fraction([points], SIZE) == 0.0
+    reasons = intrinsics.quality_reasons(
+        0.0, [np.array([[0.5], [0.0], [0.0]])] * 16,
+        [points] * 16, SIZE)
+    assert any("coverage" in r for r in reasons)
+
+
+def test_coverage_excludes_nonfinite_and_outside_points_without_clamping():
+    points = np.array([(100, 100), (np.nan, 100), (100, np.inf),
+                       (-1, 900), (1280, 100), (100, 960)], dtype=np.float64)
+    # The sole valid point counts toward exactly one of twelve cells.
+    assert intrinsics.coverage_fraction([points], SIZE) == pytest.approx(1 / 12)
+
+
+@pytest.mark.parametrize("dimensions", [
+    (0, 960), (1280, 0), (-1, 960), (1280, float("nan")),
+    (1280, float("inf")), (1280,),
+])
+def test_coverage_rejects_invalid_image_dimensions(dimensions):
+    with pytest.raises(ValueError, match="positive finite image dimensions"):
+        intrinsics.coverage_fraction([[(100, 100)]], dimensions)
