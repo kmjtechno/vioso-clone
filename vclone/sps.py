@@ -78,7 +78,7 @@ def loads(data: bytes):
         raise ValueError("not a .sps file (no <VIOSO> header)")
     try:
         root = ET.fromstring(data[:m.end()])
-    except ET.ParseError:
+    except (ET.ParseError, LookupError):
         raise ValueError("malformed .sps XML") from None
     node = root.find("data")
     if root.tag != "VIOSO" or root.find("File") is None or node is None or len(root.findall("data")) != 1:
