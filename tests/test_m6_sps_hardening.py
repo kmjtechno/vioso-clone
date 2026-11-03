@@ -81,3 +81,11 @@ def test_bounded_disk_load_without_reading_oversized_file(tmp_path, monkeypatch)
     monkeypatch.setattr(sps, "MAX_CONTAINER_BYTES", src.stat().st_size - 1)
     with pytest.raises(ValueError, match="oversized"):
         sps.load(src)
+
+
+def test_reject_unsupported_xml_encoding_as_invalid_container():
+    source = sps.dumps(_proj())
+    # Same-byte-length encoding name retains binOffset and isolates XML parser behavior.
+    corrupted = source.replace(b'encoding="UTF-8"', b'encoding="UF8-8"', 1)
+    with pytest.raises(ValueError, match="XML"):
+        sps.loads(corrupted)
