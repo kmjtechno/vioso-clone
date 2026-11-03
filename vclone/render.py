@@ -8,6 +8,10 @@ import cv2
 import numpy as np
 
 
+_MAX_SIDE = 16384
+_MAX_PIXELS = 1 << 27
+
+
 class UnsupportedOutput(NotImplementedError):
     pass
 
@@ -28,6 +32,8 @@ def render_projector(content, mesh, proj_size, alpha=None):
     nodes evenly spaced over the projector. alpha: optional (ch,cw) float blend in content
     space. Pixels not covered by a fully observed quad are black.
     """
+    if not isinstance(content, np.ndarray) or content.ndim not in (2, 3) or content.size == 0:
+        raise ValueError("content must be a non-empty (h, w) or (h, w, c) array")
     mesh = np.asarray(mesh, np.float64)
     if mesh.ndim != 3 or mesh.shape[2] != 2 or mesh.shape[0] < 2 or mesh.shape[1] < 2:
         raise ValueError("mesh must be (ny>=2, nx>=2, 2)")
@@ -36,8 +42,20 @@ def render_projector(content, mesh, proj_size, alpha=None):
         alpha = np.asarray(alpha, np.float32)
         if alpha.shape != (ch, cw):
             raise ValueError("alpha must match content size")
-    w, h = proj_size
-    ok = ~np.isnan(mesh).any(axis=2)
+        if not np.isfinite(alpha).all() or alpha.min() < 0 or alpha.max() > 1:
+            raise ValueError("alpha must be finite and within [0, 1]")
+    try:
+        good = len(proj_size) == 2 and all(
+            isinstance(v, (int, np.integer)) and not isinstance(v, bool) and 0 < v <= _MAX_SIDE
+            for v in proj_size)
+    except TypeError:
+        good = False
+    if not good:
+        raise ValueError(f"proj_size must be two integers in 1..{_MAX_SIDE}: {proj_size!r}")
+    w, h = int(proj_size[0]), int(proj_size[1])
+    if w * h > _MAX_PIXELS:
+        raise ValueError(f"proj_size too large (max {_MAX_PIXELS} pixels): {proj_size!r}")
+    ok = np.isfinite(mesh).all(axis=2)  # NaN and +-inf nodes are both unobserved
     # sample the node grid at each projector pixel (nodes sit at linspace(0, w-1) / linspace(0, h-1));
     # validity is interpolated alongside so NaN nodes do not bleed into neighbours
     ny, nx = ok.shape
