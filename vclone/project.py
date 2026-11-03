@@ -55,21 +55,26 @@ def _calibrate(project: Project) -> None:
     miss = [k for k in need if k not in sc]
     if miss:
         raise MissingInput(f"project.scan missing: {', '.join(miss)}")
-    w, h = sc["proj_size"]
-    n = len(calib.graycode_patterns(w, h)[0])
-    d = Path(sc["dir"])
-    load = lambda name: cv2.imread(str(d / name), cv2.IMREAD_GRAYSCALE)
-    pos = [load(f"p{i:02d}.png") for i in range(n)]
-    neg = [load(f"n{i:02d}.png") for i in range(n)]
-    if any(im is None for im in pos + neg):
-        raise MissingInput(f"expected {2 * n} capture files p00.png/n00.png... in {d}")
-    dec = calib.decode_graycode(pos, neg, (w, h))
-    cam_mesh = calib.proj_to_cam_mesh(dec, (w, h), tuple(sc.get("nodes", (17, 9))))
-    H = calib.cam_to_content_homography(sc["cam_corners"], sc["content_corners"])
-    mesh = calib.warp_mesh(cam_mesh, H)
-    cov = calib.coverage_mask(mesh, tuple(sc["content_size"]))
-    project.result = {"mesh": np.where(np.isnan(mesh), None, mesh).tolist(),
-                      "coverage": float(cov.mean())}
+    try:
+        w, h = sc["proj_size"]
+        if any(isinstance(v, bool) or not isinstance(v, int) or v <= 0 for v in (w, h)):
+            raise ValueError(f"proj_size must be two positive integers: {sc['proj_size']!r}")
+        n = len(calib.graycode_patterns(w, h)[0])
+        d = Path(sc["dir"])
+        load = lambda name: cv2.imread(str(d / name), cv2.IMREAD_GRAYSCALE)
+        pos = [load(f"p{i:02d}.png") for i in range(n)]
+        neg = [load(f"n{i:02d}.png") for i in range(n)]
+        if any(im is None for im in pos + neg):
+            raise MissingInput(f"expected {2 * n} capture files p00.png/n00.png... in {d}")
+        dec = calib.decode_graycode(pos, neg, (w, h))
+        cam_mesh = calib.proj_to_cam_mesh(dec, (w, h), tuple(sc.get("nodes", (17, 9))))
+        H = calib.cam_to_content_homography(sc["cam_corners"], sc["content_corners"])
+        mesh = calib.warp_mesh(cam_mesh, H)
+        cov = calib.coverage_mask(mesh, tuple(sc["content_size"]))
+        project.result = {"mesh": np.where(np.isnan(mesh), None, mesh).tolist(),
+                          "coverage": float(cov.mean())}
+    except (ValueError, TypeError, OverflowError) as e:
+        raise InvalidInput(f"invalid scan configuration: {e}") from e
 
 
 def _export(project: Project) -> None:
@@ -110,7 +115,13 @@ def _edit(project: Project) -> None:
     for e in edits:
         try:
             j, i = e["node"]
+            if any(isinstance(v, bool) or not isinstance(v, (int, np.integer)) for v in (j, i)):
+                raise TypeError("node indices must be integers")
+            if any(isinstance(e[k], bool) for k in ("dx", "dy")):
+                raise TypeError("dx/dy must be numbers")
             dx, dy = float(e["dx"]), float(e["dy"])
+            if not (np.isfinite(dx) and np.isfinite(dy)):
+                raise ValueError("dx/dy must be finite")
             if j < 0 or i < 0 or new[j][i] is None or new[j][i][0] is None:
                 raise IndexError
         except (KeyError, TypeError, ValueError, IndexError):
@@ -125,7 +136,7 @@ def _edit_mrd(project: Project) -> None:
     if not project.result.get("mesh"):
         raise MissingInput("nothing to edit: run Calibrate first")
     g = project.scan.get("blend_gamma", 2.2)
-    if not isinstance(g, (int, float)) or not 0.5 <= g <= 4.0:
+    if isinstance(g, bool) or not isinstance(g, (int, float)) or not 0.5 <= g <= 4.0:
         raise InvalidInput(f"blend_gamma must be within 0.5..4.0, got {g!r}")
     project.result["blend_gamma"] = float(g)
 
