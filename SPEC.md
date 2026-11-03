@@ -43,7 +43,8 @@ XML (`DebugOptions: ErrorHandling LogFileLevel, CatchUnhandled, SaveErrorDump, A
 Static analysis of `SPCalibrator64.exe` 7.0.4.11052 (details and evidence tags in `docs/re_notes_sps.md`):
 - **Verified (decompile):** the exe does not serialize `.sps` itself. Its project XML writer emits root `VIOSO` > `project` (`version`, `creator`) with generic `property` nodes (`name`, `type`, optional `desc`/`default`). One property, `spspath`, holds the full path of the `.sps` ("settings file", default `_Startup.sps`). Other fields: `name`, `type` (0–5), `state`, `method`, `mrdpath`, `exoptdefpath`, `recalibscriptname`, `editscriptname`, `calibratescriptname`, `screen`, `custommodel`, `localDWC`.
 - **Verified (decompile):** saving `.sps` and loading it go through a request to `SPeASY64.dll` (`SPBehaviourRequest`); the exe appends `.sps` when missing.
-- **Anuman (not decompiled):** `.sps` is XML, optionally compressed (`xmlfile`, `bSaveCompressed`, `compressLevel` settings); the compressor and field layout are **not established**.
+- **Verified (decompile, `docs/re_notes_sps_dll.md`):** `SPeASY64.dll` opens the file (0xb write, 0xa read) and hands it to a dispatcher; the serializer is downstream. Its XML is built through the MSXML DOM, and binary blobs are referenced by a `data` node with `binOffset`, `binSize`, `binSizeRaw`, `bCompressed`. VIOSO XML headers use root `<VIOSO>` with `<File version="x.y.z" build="N"/>` (this exact header on the `.sps` path is **inferred**, not tied to the save path yet).
+- **Inferred:** compression is optional deflate (zlib and minizip are linked; `bUseCompressedXmlFiles`, `iCompressLevel`); container (raw zlib vs zip) unconfirmed. The `.sps` field layout is **not established**.
 - **Still needed:** analysis of `SPeASY64.dll` or a user-provided sample `.sps` / runtime capture. The clone must not claim `.sps` compatibility until then.
 
 ## 4. Command line (from CmdLn_Param.pdf)
