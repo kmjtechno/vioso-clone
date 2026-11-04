@@ -80,3 +80,16 @@ def test_missing_calibration_cannot_create_new_output(tmp_path):
     with pytest.raises(MissingInput):
         render_preview(Project("uncalibrated"), src, dest)
     assert not dest.exists()
+
+
+def test_xml_preview_existing_target_reports_script_error_without_overwrite(tmp_path):
+    from vclone import script
+    p, src = _scene(tmp_path)
+    dest = tmp_path / "owner.png"
+    dest.write_bytes(b"EXISTING_OWNER")
+    xml = ('<?xml version="1.0"?><VIOSO><File version="1.0.0"/>'
+           '<task action="Execute" typ="Preview">'
+           '<param content="content.png" out="owner.png"/></task></VIOSO>')
+    with pytest.raises(script.ScriptError, match="new .png"):
+        script.run_script(xml, project=p, base_dir=tmp_path)
+    assert dest.read_bytes() == b"EXISTING_OWNER"
