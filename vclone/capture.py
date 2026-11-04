@@ -6,6 +6,7 @@ a locally attached camera; it does not claim hardware or native VIOSO parity.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -13,6 +14,8 @@ from typing import Callable, Iterator
 
 import cv2
 import numpy as np
+
+from .projector_mask import read_projector_mask
 
 MAX_PROJECTOR_PIXELS = 1920 * 1080
 MAX_CAMERA_PIXELS = 4096 * 2160
@@ -89,6 +92,8 @@ def capture_sequence(
     output_dir: str | os.PathLike[str],
     show: Callable[[np.ndarray], None],
     grab: Callable[[], np.ndarray],
+    *,
+    projector_mask: np.ndarray | None = None,
 ) -> CaptureReceipt:
     """Acquire a bounded camera image for each projected pattern.
 
@@ -98,12 +103,23 @@ def capture_sequence(
     w, h = _size(width, height)
     if not callable(show) or not callable(grab):
         raise TypeError("show and grab must be callable")
+    # Validate projector-side mask before creating any output folder.
+    mask = None
+    if projector_mask is not None:
+        if (not isinstance(projector_mask, np.ndarray)
+                or projector_mask.dtype != np.uint8
+                or projector_mask.shape != (h, w)
+                or int(np.count_nonzero(projector_mask)) < 4):
+            raise CaptureError("projector mask must be a bounded nonempty uint8 projector grayscale frame")
+        mask = projector_mask.copy()
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=False)
     names: list[str] = []
     camera_size: tuple[int, int] | None = None
     for name, pattern in iter_patterns(w, h):
-        show(pattern)
+        # Gray-code patterns are 0/255; this preserves exact grayscale mask
+        # intensities only where the pattern is lit, including inverse pairs.
+        show(pattern if mask is None else cv2.bitwise_and(pattern, mask))
         frame = _grayscale(grab())
         current_size = (frame.shape[1], frame.shape[0])
         if camera_size is None:
@@ -120,7 +136,11 @@ def capture_sequence(
     receipt = CaptureReceipt(MANIFEST_SCHEMA, (w, h), camera_size,
                              pattern_count(w, h), tuple(names))
     manifest = out / "capture_manifest.json"
-    manifest.write_text(json.dumps(asdict(receipt), indent=2) + "\n", encoding="utf-8")
+    manifest_data = asdict(receipt)
+    if mask is not None:
+        manifest_data["projector_mask_applied"] = True
+        manifest_data["projector_mask_pixel_sha256"] = hashlib.sha256(mask.tobytes()).hexdigest()
+    manifest.write_text(json.dumps(manifest_data, indent=2) + "\n", encoding="utf-8")
     return receipt
 
 
@@ -135,6 +155,7 @@ def capture_opencv(
     settle_ms: int = 250,
     warmup_frames: int = 2,
     confirmed: bool = False,
+    projector_mask_path=None,
 ) -> CaptureReceipt:
     """Use OpenCV display + VideoCapture on a locally approved projector/camera.
 
@@ -150,6 +171,9 @@ def capture_opencv(
             or type(settle_ms) is not int or not 1 <= settle_ms <= 10000
             or type(warmup_frames) is not int or not 0 <= warmup_frames <= 30):
         raise ValueError("invalid camera, projector origin or capture timing")
+    # Unsafe masks are refused before opening camera or projector windows.
+    mask = (None if projector_mask_path is None else
+            read_projector_mask(projector_mask_path, (width, height)))
     camera = cv2.VideoCapture(camera_index)
     if not camera.isOpened():
         camera.release()
@@ -176,7 +200,7 @@ def capture_opencv(
                 raise CaptureError("camera capture failed")
             return frame
 
-        return capture_sequence(width, height, output_dir, show, grab)
+        return capture_sequence(width, height, output_dir, show, grab, projector_mask=mask)
     finally:
         camera.release()
         if created:
