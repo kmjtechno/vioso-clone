@@ -140,7 +140,9 @@ def enumerate_windows_displays():
             "right": int(rect.right), "bottom": int(rect.bottom),
             "primary": bool(info.dwFlags & 1),
         })
-        return len(screens) < MAX_DISPLAYS
+        # Keep enumerating; reject an oversized list after the Win32 call,
+        # rather than treating a normal callback stop as an API failure.
+        return True
 
     ok = enumerate_monitors(None, None, visit, 0)
     if failed[0] or not ok or not screens:
