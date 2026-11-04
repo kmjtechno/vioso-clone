@@ -177,6 +177,41 @@ class Session:
         self._note(f"saved CPU preview to {target}; hardware_acceptance=NOT_VERIFIED")
         return target
 
+    def inspect_camera_profile(self, path):
+        """Validate one selected camera profile with zero camera/network access.
+
+        Never store source URIs, credentials or the private profile's path.
+        """
+        from .camera_sources import CameraSourceError, profile_status, read_profile
+
+        if not path:
+            raise SessionError("select an existing private camera profile")
+        try:
+            result = profile_status(read_profile(path))
+        except (CameraSourceError, OSError, ValueError, TypeError):
+            raise SessionError("private camera profile refused or unreadable") from None
+        self._note(
+            f"offline camera profile validated: {result['camera_type']}; "
+            "camera_connection=NOT_TESTED; hardware_optical_acceptance=NOT_VERIFIED"
+        )
+        return result
+
+    def inspect_rig(self, *, expected_projectors=2):
+        """Read Windows display rectangles only, without projector operations."""
+        from .rig_preflight import RigPreflightError, rig_preflight
+
+        try:
+            report = rig_preflight(expected_projectors=expected_projectors)
+        except RigPreflightError as exc:
+            raise SessionError(f"read-only rig inspection refused: {exc}") from None
+        except (OSError, ValueError, TypeError):
+            raise SessionError("read-only Windows rig inspection unavailable") from None
+        self._note(
+            f"read-only rig preflight: {report['display_layout_gate']}; "
+            "projector_identity=NOT_VERIFIED; hardware_optical_acceptance=NOT_VERIFIED"
+        )
+        return report
+
     def compare_projector_seam(self, other_path):
         """Read-only two-projector geometry check using the current in-memory project.
 

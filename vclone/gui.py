@@ -53,6 +53,9 @@ class MainWindow(QMainWindow):
         calib_menu.addAction("&Select camera corners...", self.select_corners)
         calib_menu.addAction("&Preview calibrated content (CPU)...", self.preview_content)
         calib_menu.addAction("Compare two-projector seam (offline)...", self.compare_two_projectors)
+        calib_menu.addSeparator()
+        calib_menu.addAction("Check camera profile (offline)...", self.check_camera_profile)
+        calib_menu.addAction("Check Windows projector rig (read-only)...", self.check_display_rig)
         self.refresh()
 
     def refresh(self):
@@ -141,6 +144,58 @@ class MainWindow(QMainWindow):
         if not target:
             return
         self._guard(self.session.save_preview_png, self._preview_frame, target)
+
+    def check_camera_profile(self):
+        """Explicit file selection: validate credentials locally, never open camera."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Choose private camera source profile for OFFLINE validation",
+            "", "Camera source JSON (*.json)")
+        if not path:
+            return
+        try:
+            report = self.session.inspect_camera_profile(path)
+            QMessageBox.information(
+                self, "Offline camera profile",
+                f"Source type: {report['camera_type']}\n"
+                f"Capture backend: {report['capture_backend']}\n"
+                f"Profile validation: {report['source_validation']}\n"
+                "Camera connection: NOT TESTED\n"
+                "Physical optical acceptance: NOT VERIFIED\n"
+                "No camera, network or projector was accessed.")
+        except (SessionError, ValueError, OSError):
+            # Do not display private path, stream URL or backend exceptions.
+            QMessageBox.warning(
+                self, "Offline camera profile", "Camera profile validation refused.")
+        self.refresh()
+
+    def check_display_rig(self):
+        """Read only the local Windows display layout; no projector switch-on."""
+        try:
+            report = self.session.inspect_rig(expected_projectors=2)
+            lines = [
+                f"Desktop layout gate: {report['display_layout_gate']}",
+                f"Desktop displays found: {report['desktop_displays_found']}",
+                "Expected projectors: 2 (operator mapping required)",
+                "Projector power/identity: NOT VERIFIED",
+                "Physical optical acceptance: NOT VERIFIED",
+                "Read-only screen rectangles:",
+            ]
+            for screen in report["desktop_rectangles"]:
+                lines.append(
+                    f"  #{screen['display_index']}: "
+                    f"({screen['x']}, {screen['y']}) "
+                    f"{screen['width']}x{screen['height']}"
+                    + (" [primary]" if screen["primary"] else "")
+                )
+            lines.append("No camera or projector was started.")
+            message = "\n".join(lines)
+            if report["display_layout_gate"] == "OPERATOR_MAPPING_REQUIRED":
+                QMessageBox.information(self, "Read-only projector rig", message)
+            else:
+                QMessageBox.warning(self, "Read-only projector rig", message)
+        except (SessionError, ValueError, OSError) as exc:
+            QMessageBox.warning(self, "Read-only projector rig", str(exc))
+        self.refresh()
 
     def compare_two_projectors(self):
         """Show a read-only software seam report; never activate projectors."""
