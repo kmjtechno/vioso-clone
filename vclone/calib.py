@@ -10,6 +10,20 @@ import cv2
 import numpy as np
 
 
+def _pos_int(v) -> bool:
+    return isinstance(v, (int, np.integer)) and not isinstance(v, bool) and v > 0
+
+
+def _check_pair(value, label, minimum=1):
+    try:
+        ok = len(value) == 2 and all(_pos_int(v) and v >= minimum for v in value)
+    except TypeError:
+        ok = False
+    if not ok:
+        raise ValueError(f"{label} must be two integers >= {minimum}: {value!r}")
+    return int(value[0]), int(value[1])
+
+
 def _nbits(n: int) -> int:
     return max(1, int(np.ceil(np.log2(n))))
 
@@ -38,12 +52,16 @@ class Decoded:
 
 def decode_graycode(captures, inverses, proj_size, margin: int = 20) -> Decoded:
     """captures/inverses: camera images (gray or BGR) for each pattern/inverse in graycode order."""
-    w, h = proj_size
+    w, h = _check_pair(proj_size, "proj_size")
+    if isinstance(margin, bool) or not isinstance(margin, (int, float)) or not np.isfinite(margin) or margin < 0:
+        raise ValueError(f"margin must be a finite number >= 0: {margin!r}")
     nx, ny = _nbits(w), _nbits(h)
     if len(captures) != nx + ny or len(inverses) != len(captures):
         raise ValueError(f"need {nx + ny} pattern/inverse pairs")
     gray = lambda im: im if im.ndim == 2 else cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
     shape = gray(captures[0]).shape
+    if any(gray(im).shape != shape for im in list(captures) + list(inverses)):
+        raise ValueError("all captures and inverses must have the same shape")
     valid = np.ones(shape, bool)
     bits = []
     for c, i in zip(captures, inverses):
@@ -72,11 +90,15 @@ def proj_to_cam_mesh(dec: Decoded, proj_size, nodes=(17, 9), radius: int = 12, m
     Per node, fits an affine map (projector -> camera) to the decoded pixels within `radius`
     and evaluates it at the node, so border nodes are not biased by one-sided windows.
     """
-    w, h = proj_size
+    w, h = _check_pair(proj_size, "proj_size")
+    gx, gy = _check_pair(nodes, "nodes", minimum=2)
+    if isinstance(radius, bool) or not isinstance(radius, (int, float)) or not np.isfinite(radius) or radius <= 0:
+        raise ValueError(f"radius must be a finite number > 0: {radius!r}")
+    if not _pos_int(min_pixels) or min_pixels < 3:
+        raise ValueError(f"min_pixels must be an integer >= 3 (affine fit): {min_pixels!r}")
     cy, cx = np.nonzero(dec.valid)
     ppx, ppy = dec.px[cy, cx].astype(np.float64), dec.py[cy, cx].astype(np.float64)
     cam = np.stack([cx, cy], 1).astype(np.float64)
-    gx, gy = nodes
     out = np.full((gy, gx, 2), np.nan)
     for j, y in enumerate(np.linspace(0, h - 1, gy)):
         for i, x in enumerate(np.linspace(0, w - 1, gx)):
@@ -221,24 +243,63 @@ def fit_planes(cam_pts, proj_pts, *, min_plane_points=12, inlier_tol_px=1.0, max
     return MultiPlane(planes, [int(i) for i in pool])
 
 
+def _check_mesh(mesh, name="mesh", min_nodes=1):
+    m = np.asarray(mesh, np.float64) if mesh is not None else None
+    if m is None or m.ndim != 3 or m.shape[2] != 2 or m.shape[0] < min_nodes or m.shape[1] < min_nodes:
+        raise ValueError(f"{name} must have shape (ny, nx, 2) with at least {min_nodes} node(s) per axis")
+    return m
+
+
 def warp_mesh(cam_mesh, H):
-    """Map camera-space node positions into content space: (ny, nx, 2), NaN preserved."""
-    flat = cam_mesh.reshape(-1, 1, 2)
-    ok = ~np.isnan(flat).any(axis=(1, 2))
+    """Map camera-space node positions into content space: (ny, nx, 2), NaN preserved.
+
+    Fails closed on a non-3x3, non-finite or singular homography. Nodes that map through the
+    horizon (w ~ 0) or to a non-finite result become NaN instead of garbage.
+    """
+    mesh = _check_mesh(cam_mesh)
+    try:
+        Hm = np.asarray(H, np.float64)
+    except (TypeError, ValueError):
+        raise ValueError("homography must be a numeric 3x3 matrix") from None
+    if Hm.shape != (3, 3) or not np.isfinite(Hm).all():
+        raise ValueError("homography must be a finite 3x3 matrix")
+    if abs(np.linalg.det(Hm)) <= 1e-12 * max(1.0, np.abs(Hm).max()) ** 3:
+        raise ValueError("homography is singular")
+    flat = mesh.reshape(-1, 2)
     out = np.full(flat.shape, np.nan)
-    if ok.any():
-        out[ok] = cv2.perspectiveTransform(flat[ok], H)
-    return out.reshape(cam_mesh.shape)
+    ok = np.isfinite(flat).all(axis=1)
+    hom = np.c_[flat[ok], np.ones(ok.sum())] @ Hm.T
+    w = hom[:, 2]
+    good = np.abs(w) > 1e-9 * max(1.0, np.abs(hom).max())
+    res = np.full((len(w), 2), np.nan)
+    res[good] = hom[good, :2] / w[good, None]
+    res[~np.isfinite(res).all(axis=1)] = np.nan
+    out[ok] = res
+    return out.reshape(mesh.shape)
+
+
+_MAX_COORD = 1e8  # cv2 rasterises in int32; quads beyond this are skipped, not wrapped
 
 
 def coverage_mask(mesh, content_size) -> np.ndarray:
-    """Rasterise the mesh quads (content pixels) into a boolean coverage mask."""
-    w, h = content_size
+    """Rasterise the mesh quads (content pixels) into a boolean coverage mask.
+
+    Quads with a NaN, infinite or absurdly large (> 1e8) corner are skipped, never wrapped.
+    """
+    mesh = _check_mesh(mesh, min_nodes=2)
+    try:
+        ok = len(content_size) == 2 and all(
+            isinstance(v, (int, np.integer)) and not isinstance(v, bool) and v > 0 for v in content_size)
+    except TypeError:
+        ok = False
+    if not ok:
+        raise ValueError(f"content_size must be two positive integers: {content_size!r}")
+    w, h = int(content_size[0]), int(content_size[1])
     m = np.zeros((h, w), np.uint8)
     for j in range(mesh.shape[0] - 1):
         for i in range(mesh.shape[1] - 1):
             q = np.array([mesh[j, i], mesh[j, i + 1], mesh[j + 1, i + 1], mesh[j + 1, i]])
-            if not np.isnan(q).any():
+            if np.isfinite(q).all() and np.abs(q).max() <= _MAX_COORD:
                 cv2.fillConvexPoly(m, q.round().astype(np.int32), 1)
     return m.astype(bool)
 
