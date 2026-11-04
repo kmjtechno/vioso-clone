@@ -73,6 +73,16 @@ opening a camera/projector or writing files. See
 This is software screening only, not optical calibration certification or
 native VIOSO 7 compatibility.
 
+## Optical camera ROI masking (M28)
+
+Use `vclone capture-check <folder> --camera-mask <binary-mask.png>` to inspect
+captured Gray-code images within an explicitly defined camera ROI. In the
+**camera** mask, black pixels are included and white pixels excluded; the scan
+project can optionally name a basename `scan.camera_mask` in its capture
+folder to apply the same ROI during calibration. Masking does not change
+projector output. See [clean-room optical feature matrix](docs/M28_OPTICAL_CALIBRATION_MATRIX.md)
+for implemented versus unverified original VIOSO 7 calibration capabilities.
+
 ## Experimental real camera acquisition
 
 Only use with an explicitly identified external projector display and camera:
