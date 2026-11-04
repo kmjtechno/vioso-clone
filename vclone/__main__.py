@@ -33,6 +33,11 @@ def main(argv=None):
     cam.add_argument("--settle-ms", type=int, default=250, help="settling time per projected frame")
     cam.add_argument("--warmup-frames", type=int, default=2, help="discarded camera frames per pattern")
     cam.add_argument("--confirm-display", action="store_true", help="I verified the projector display coordinates")
+    cq = sub.add_parser("capture-check", help="read-only Gray-code capture image integrity and decoding quality")
+    cq.add_argument("directory", help="existing clone Gray-code capture folder")
+    cq.add_argument("--margin", type=int, default=20, help="minimum absolute p/n contrast (0..254)")
+    cq.add_argument("--min-valid-fraction", type=float, default=0.30, help="decoded valid camera fraction (0.01..1)")
+    cq.add_argument("--min-axis-span", type=float, default=0.25, help="minimum decoded projector x/y span (0.01..1)")
     sub.add_parser("gui", help="launch the optional PySide6 project editor")
     still = sub.add_parser("present-preview", help="opt-in bounded calibrated still on a projector")
     still.add_argument("project", help="calibrated clone-format JSON project")
@@ -156,6 +161,18 @@ def main(argv=None):
                 OSError, ValueError, TypeError) as e:
             print(f"presentation refused: {e}", file=sys.stderr)
             return 2
+        return 0
+    if a.cmd == "capture-check":
+        import json
+        from .capture_check import CaptureCheckError, check_capture
+        try:
+            report = check_capture(a.directory, margin=a.margin,
+                                   min_valid_fraction=a.min_valid_fraction,
+                                   min_axis_span=a.min_axis_span)
+        except (CaptureCheckError, ValueError, TypeError, OSError) as exc:
+            print(f"capture quality refused: {exc}", file=sys.stderr)
+            return 2
+        print(json.dumps(report, sort_keys=True))
         return 0
     if a.cmd == "capture-graycode":
         from . import capture
