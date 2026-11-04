@@ -80,8 +80,9 @@ jobs:
           $tag = 'vclone-alpha-win-' + $sha.Substring(0, 12)
           $zip = Join-Path $PWD 'dist/KMJ-VIOSO-Clone-alpha-win64.zip'
           if (-not (Test-Path -LiteralPath $zip -PathType Leaf)) { throw 'M42_PRERELEASE_ZIP_NOT_FOUND' }
-          gh --version | Select-Object -First 1
-          if ($LASTEXITCODE -ne 0) { throw 'M42_GH_CLI_UNAVAILABLE' }
+          $ghExe = Get-Command gh -CommandType Application -ErrorAction Stop | Select-Object -First 1
+          if ($null -eq $ghExe -or -not $ghExe.Source) { throw 'M42_GH_CLI_UNAVAILABLE' }
+          Write-Output 'M42_GH_CLI_PRESENT=PASS'
           $notes = 'UNSIGNED experimental independent KMJ VIOSO Clone alpha. P520 install and camera/projector optical acceptance NOT VERIFIED. Proprietary VIOSO 7 SPS parity NOT VERIFIED. Do not disable Windows security controls. See docs/M42_WINDOWS_PORTABLE_GUI.md.'
           gh release create $tag $zip --repo kmjtechno/vioso-clone --target $sha --title ('KMJ VIOSO Clone unsigned Windows alpha ' + $sha.Substring(0, 12)) --notes $notes --prerelease --latest=false
           if ($LASTEXITCODE -ne 0) { throw 'M42_PRERELEASE_CREATE_OR_UPLOAD_FAILED' }
