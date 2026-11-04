@@ -94,6 +94,18 @@ def test_m41_ephemeral_private_repo_auth_never_reaches_checkout_or_pip():
     assert 'Write-Output $env:M41_GITHUB_READ_TOKEN' not in data
 
 
+
+def test_m41_git_auth_isolated_from_invoking_worktree():
+    data = source()
+    assert "Push-Location -LiteralPath $Root" in data
+    assert "Pop-Location" in data
+    assert data.index("Push-Location -LiteralPath $Root") < data.index(
+        "ls-remote --heads")
+    assert data.index("Pop-Location") < data.index(
+        "Remove-Item Env:\\GIT_CONFIG_VALUE_0")
+    assert "M41_GIT_CONFIG_ENV_ALREADY_PRESENT_REFUSE_OVERRIDE" in data
+
+
 def test_m41_gui_regression_runs_only_in_isolated_virtualenv():
     data = source()
     assert "Join-Path $Target '.venv'" in data
