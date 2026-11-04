@@ -1,45 +1,63 @@
-# VIOSO-Clone (`vclone`)
+# VIOSO-Clone (vclone)
 
-Clean-room reimplementation effort for a VIOSO 7 style projector-calibration tool.
-Python, numpy/OpenCV. No original code or assets are copied; licensing mechanisms
-(Soraco QLM etc.) are deliberately **not** implemented.
+An independently implemented Python/OpenCV projector-calibration application under active development. The goal is functional VIOSO-like projection calibration without copying vendor code, assets, licensing, or protected formats.
 
-## Status (honest)
+This repository is source code, not a finished replacement for VIOSO 7. Synthetic calibration and software-rendered previews are tested. Native .sps interoperability, real-time multi-projector output and physical hardware acceptance remain **NOT VERIFIED**.
 
-Working and tested on **synthetic data only**. Nothing here is hardware evidence and no
-claim of compatibility with the original `.sps` format is made (see `SPEC.md` §3.6 and
-`docs/re_notes_sps.md`: the `.sps` internals are not established).
+## Current features
 
-| Area | State |
-|---|---|
-| Gray-code pattern generation, decode, projector→camera mesh | implemented (`vclone/calib.py`) |
-| Homography to content space, multi-plane RANSAC, intrinsics with quality gates | implemented, fail-closed gates |
-| Warp mesh, coverage mask, edge-blend weights | implemented |
-| CPU software renderer (warp + blend) | implemented (`vclone/render.py`) |
-| `/L /Q ...` command line steps (Calibrate, Recalibrate, Export, Design, Edit, Edit MRD, Configure) | implemented (`vclone/project.py`); Activate/Deactivate refuse on purpose |
-| Playlist player, remote control, task-script runner | implemented at software level (`player.py`, `remote.py`, `script.py`) |
-| Qt GUI | minimal window (`gui.py`); not a full mirror of the original UI |
-| DirectX/OpenGL output | **not implemented** (raises `UnsupportedOutput`) |
-| Original `.sps` read/write | **not implemented** (internals unknown) |
-| Real camera/projector capture hardware | **not implemented** |
+| Module | Current status |
+| --- | --- |
+| Gray-code generation/decoding and projector-to-camera mapping | Implemented; synthetic tests |
+| Camera intrinsics and quality gates | Implemented with OpenCV |
+| Homography, multipane RANSAC and warp mesh | Implemented; synthetic tests |
+| Edge blending and CPU frame warp preview | Implemented; no dedicated GPU swap-chain |
+| Project JSON, design/calibration/edit/export CLI | Implemented |
+| Clone-specific .sps container (M5/M6) | Implemented with bounded parser; **NOT native VIOSO compatible** |
+| Read-only .sps XML metadata inspector (M7) | Implemented; explicitly no payload/native compatibility claim |
+| Experimental projector Gray-code / camera capture (M8) | Implemented, opt-in; **physical hardware not yet verified** |
+| Minimal PySide6 GUI | Implemented; not full commercial UI |
+| Player, remote and automation script modules | Implemented at software level; no real NDI/real-time output |
+| Original VIOSO 7 formats, proprietary render API, hardware parity | **Not implemented / not verified** |
 
-"Full parity" with the original product is a multi-month effort; this repo is a verified
-foundation, not a finished replacement.
+## Quick start
 
-## Run
+Use a Python environment with OpenCV and NumPy. PySide6 is optional for the GUI; install the GUI-capable OpenCV build for an actual projector window.
 
-```
-pip install numpy opencv-python pytest   # PySide6 only for the GUI
-python -m pytest -q                      # tests (a few skip when VIOSO 7 is not installed)
-python examples/synthetic_demo.py        # simulated capture -> Calibrate -> Export -> preview.png
-python -m vclone /L:project.json '/Q:"Calibrate"'
-```
+    python -m pip install numpy opencv-python pytest PySide6
+    python -m pytest -q
+    python examples/synthetic_demo.py
+    python -m vclone gui
 
-The demo prints the output directory; open `preview.png` there to see the warped test grid.
-The CLI project format is the clone's own JSON (`Project` in `vclone/project.py`) plus an
-experimental fail-closed XML dialect (`vclone/projectxml.py`).
+The synthetic demo writes pNN/nNN camera images, a clone-format JSON project, warp.json, content.png and preview.png into a newly created temporary folder. It never uses a real camera or projector. The demo refuses an output folder containing existing files.
 
-## Layout
+## Experimental real camera acquisition
 
-- `vclone/` source, `tests/` pytest suite, `SPEC.md` observed formats and milestones,
-  `docs/re_notes_sps.md` read-only static-analysis notes (verified vs. inferred marked).
+Only use with an explicitly identified external projector display and camera:
+
+    python -m vclone capture-graycode --width 1280 --height 800 --camera 0 --projector-x 1920 --projector-y 0 --out "E:/KMJ/Captures/run-001" --confirm-display
+
+The destination must not exist. The displayed coordinates are examples and must be confirmed by the operator; the camera window will not open without the confirmation flag. Camera timing/contrast and projector suitability need real tests. See docs/M8_CAMERA_CAPTURE.md for the manual project configuration and calibration pipeline.
+
+## Calibration CLI
+
+Use the clone's own project.json with measured corner points and scan folder:
+
+    python -m vclone /L:project.json /Q:Calibrate
+    python -m vclone /L:project.json /Q:Export
+    python -m vclone preview project.json content.png preview.png
+
+Do not treat a successful preview as hardware calibration proof. Design, editing, remote and player features have narrower verified scope than a full proprietary software product.
+
+## Project structure
+
+- vclone/calib.py, intrinsics.py, render.py: calibration algorithms and CPU software output
+- vclone/project.py, cmdline.py, gui.py, gui_model.py: project workflow, command line and minimal GUI
+- vclone/sps.py and sps_probe.py: clone SPS and read-only bounded metadata inspection
+- vclone/capture.py: opt-in camera/projector acquisition
+- vclone/script.py, remote.py, player.py: software workflow components
+- examples/synthetic_demo.py: runnable end-to-end synthetic calibration
+- tests/: Python regression suites; hosted Windows/Linux CI tests synthetic workflows, not physical hardware
+- SPEC.md and docs/: clean-room specification, limitations and evidence
+
+No source from SPCalibrator64.exe, SPeASY64.dll, license/protector DLLs or third-party protected software is included.
