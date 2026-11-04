@@ -27,7 +27,7 @@ This repository is source code, not a finished replacement for VIOSO 7. Syntheti
 
 ## Install as a Python package (M12)
 
-A versioned Python wheel and `vclone` console entrypoint are provided. Use a clean Python virtual environment:
+A versioned Python wheel and `vclone` console entrypoint are provided. Current development alpha is **v0.2.0a1**; see [alpha release notes](docs/RELEASE_0_2_0_ALPHA.md). Use a clean Python virtual environment:
 
     python -m pip install ".[gui]"
     vclone --help
