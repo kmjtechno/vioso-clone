@@ -145,3 +145,42 @@ def test_cli_duplicate_path_and_symlink_cannot_be_used_as_second_project(tmp_pat
     assert main(["two-projector-check", str(left), str(alias)]) == 2
     assert not capsys.readouterr().out
     assert left.read_bytes() == before
+
+
+
+def test_named_content_space_mismatch_refused_without_projectors():
+    p1 = calibrated("a", 0, 100)
+    p2 = calibrated("b", 70, 159)
+    p1.content_space = "content-canvas-a"
+    p2.content_space = "content-canvas-b"
+    with pytest.raises(TwoProjectorError, match="space identifiers"):
+        check_two_projectors([p1, p2])
+    p2.content_space = "content-canvas-a"
+    assert check_two_projectors([p1, p2])["content_space_identity"] == "MATCHING"
+
+
+def test_missing_named_content_space_cannot_claim_identity_verified():
+    p1 = calibrated("a", 0, 100)
+    p2 = calibrated("b", 70, 159)
+    p1.content_space = "canvas"
+    p2.content_space = ""
+    report = check_two_projectors([p1, p2])
+    assert report["content_space_identity"] == "NOT_VERIFIED"
+
+
+def test_oversized_mesh_grid_refused_before_memory_heavy_rasterization():
+    p1 = calibrated("a", 0, 100)
+    p2 = calibrated("b", 70, 159)
+    # This source-level test deliberately uses a >65k-node grid; no devices
+    # or image output is touched.
+    p2.result["mesh"] = np.zeros((257, 256, 2), dtype=np.float64).tolist()
+    with pytest.raises(TwoProjectorError, match="65536"):
+        check_two_projectors([p1, p2])
+
+
+def test_scan_metadata_must_be_mapping():
+    p1 = calibrated("a", 0, 100)
+    p2 = calibrated("b", 70, 159)
+    p2.scan = None
+    with pytest.raises(TwoProjectorError, match="metadata"):
+        check_two_projectors([p1, p2])
