@@ -103,6 +103,39 @@ def inspect_prefix(prefix: bytes, file_bytes: int) -> SPSHeaderEvidence:
     )
 
 
+
+def _read_metadata_header(fd: int, size: int) -> bytes:
+    """Read only the declared XML header, one byte at a time.
+
+    No bulk read is allowed to cross the XML/payload boundary. The final
+    whitespace after the closing tag is read only up to the declared offset.
+    """
+    limit = min(size, sps.MAX_HEADER_BYTES)
+    header = bytearray()
+    closing = b"</VIOSO>"
+    while len(header) < limit:
+        chunk = os.read(fd, 1)
+        if not chunk:
+            break
+        header.extend(chunk)
+        if header.endswith(closing):
+            break
+    if not header.endswith(closing):
+        raise ValueError("missing .sps XML closing tag within header limit")
+    offset_match = re.search(rb'\\bbinOffset="([0-9]{20})"', header)
+    if offset_match is None:
+        raise ValueError("invalid .sps binOffset width")
+    offset = int(offset_match.group(1))
+    if offset < len(header) or offset > limit:
+        raise ValueError("invalid .sps XML header boundary")
+    while len(header) < offset:
+        chunk = os.read(fd, 1)
+        if chunk not in (b" ", b"\\t", b"\\n", b"\\r"):
+            raise ValueError("unexpected bytes after .sps XML closing tag")
+        header.extend(chunk)
+    return bytes(header)
+
+
 def inspect_file(path: str | os.PathLike[str]) -> SPSHeaderEvidence:
     """Inspect a regular non-symlink file without reading the binary payload."""
     source = Path(path)
@@ -121,7 +154,7 @@ def inspect_file(path: str | os.PathLike[str]) -> SPSHeaderEvidence:
             raise ValueError("only regular .sps files can be inspected")
         if before.st_size > sps.MAX_CONTAINER_BYTES:
             raise ValueError("oversized .sps file")
-        prefix = os.read(fd, min(before.st_size, sps.MAX_HEADER_BYTES))
+        prefix = _read_metadata_header(fd, before.st_size)
         after = os.fstat(fd)
         if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
             raise ValueError(".sps file changed while being inspected")
