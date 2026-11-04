@@ -72,6 +72,22 @@ def test_m41_git_python_path_multiplicity_is_resolved_to_one_binary():
     assert "$GitExe = (Get-Command git -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source" in data
 
 
+
+def test_m41_ephemeral_private_repo_auth_never_reaches_checkout_or_pip():
+    data = source()
+    assert "M41_GITHUB_READ_TOKEN" in data
+    assert "AUTHORIZATION: basic " in data
+    assert "GIT_CONFIG_VALUE_0" in data
+    assert "M41_GIT_CONFIG_ENV_ALREADY_PRESENT_REFUSE_OVERRIDE" in data
+    assert "Remove-Item Env:\\GIT_CONFIG_VALUE_0" in data
+    assert "Remove-Item Env:\\M41_GITHUB_READ_TOKEN" in data
+    assert data.index("Remove-Item Env:\\GIT_CONFIG_VALUE_0") < data.index(
+        "checkout --detach $Sha")
+    assert data.index("Remove-Item Env:\\GIT_CONFIG_VALUE_0") < data.index(
+        "-m pip install")
+    assert 'Write-Output $env:M41_GITHUB_READ_TOKEN' not in data
+
+
 def test_m41_gui_regression_runs_only_in_isolated_virtualenv():
     data = source()
     assert "Join-Path $Target '.venv'" in data
