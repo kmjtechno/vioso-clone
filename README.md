@@ -16,6 +16,7 @@ This repository is source code, not a finished replacement for VIOSO 7. Syntheti
 | Clone-specific .sps container (M5/M6) | Implemented with bounded parser; **NOT native VIOSO compatible** |
 | Read-only .sps XML metadata inspector (M7) | Implemented; explicitly no payload/native compatibility claim |
 | Experimental projector Gray-code / camera capture (M8) | Implemented, opt-in; **physical hardware not yet verified** |
+| Experimental calibrated still-frame projector output (M9) | Opt-in bounded OpenCV fullscreen; **not hardware/sync verified** |
 | Minimal PySide6 GUI | Implemented; not full commercial UI |
 | Player, remote and automation script modules | Implemented at software level; no real NDI/real-time output |
 | Original VIOSO 7 formats, proprietary render API, hardware parity | **Not implemented / not verified** |
@@ -39,6 +40,14 @@ Only use with an explicitly identified external projector display and camera:
 
 The destination must not exist. The displayed coordinates are examples and must be confirmed by the operator; the camera window will not open without the confirmation flag. Camera timing/contrast and projector suitability need real tests. See docs/M8_CAMERA_CAPTURE.md for the manual project configuration and calibration pipeline.
 
+## Show a calibrated still on a projector
+
+A clone JSON project with valid calibration can render a corrected still frame on an explicitly selected extended-desktop projector output. Confirm display coordinates and use a bounded duration:
+
+    python -m vclone present-preview project.json content.png --projector-x 1920 --projector-y 0 --duration-ms 5000 --confirm-display
+
+This uses OpenCV fullscreen for a single still frame, not a synchronized video renderer or DirectX backend. The sample X=1920/Y=0 coordinates are **not autodetected**. See docs/M9_PROJECTOR_STILL_OUTPUT.md.
+
 ## Calibration CLI
 
 Use the clone's own project.json with measured corner points and scan folder:
@@ -55,6 +64,7 @@ Do not treat a successful preview as hardware calibration proof. Design, editing
 - vclone/project.py, cmdline.py, gui.py, gui_model.py: project workflow, command line and minimal GUI
 - vclone/sps.py and sps_probe.py: clone SPS and read-only bounded metadata inspection
 - vclone/capture.py: opt-in camera/projector acquisition
+- vclone/output.py: opt-in bounded still-frame projector output
 - vclone/script.py, remote.py, player.py: software workflow components
 - examples/synthetic_demo.py: runnable end-to-end synthetic calibration
 - tests/: Python regression suites; hosted Windows/Linux CI tests synthetic workflows, not physical hardware

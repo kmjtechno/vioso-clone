@@ -1,0 +1,42 @@
+name: M9 Calibrated Projector Output Regression
+on:
+  push:
+    branches:
+      - feat/m9-opencv-projector-preview-20261104
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      PYTHONPATH: .
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install --disable-pip-version-check pytest numpy opencv-python-headless
+      - name: M9 still output focused regression
+        run: python -m pytest tests/test_m9_projector_output.py -q
+      - name: Full Python regression
+        run: python -m pytest -q
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      PYTHONPATH: .
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install --disable-pip-version-check pytest numpy opencv-python-headless PySide6
+      - name: M9 still output focused regression
+        run: python -m pytest tests/test_m9_projector_output.py -q
+      - name: Full Python regression including Qt smoke
+        run: python -m pytest -q

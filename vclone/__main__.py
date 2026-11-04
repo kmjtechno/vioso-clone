@@ -34,7 +34,29 @@ def main(argv=None):
     cam.add_argument("--warmup-frames", type=int, default=2, help="discarded camera frames per pattern")
     cam.add_argument("--confirm-display", action="store_true", help="I verified the projector display coordinates")
     sub.add_parser("gui", help="launch the optional PySide6 project editor")
+    still = sub.add_parser("present-preview", help="opt-in bounded calibrated still on a projector")
+    still.add_argument("project", help="calibrated clone-format JSON project")
+    still.add_argument("content", help="source image to warp")
+    still.add_argument("--projector-x", type=int, required=True)
+    still.add_argument("--projector-y", type=int, required=True)
+    still.add_argument("--duration-ms", type=int, default=5000, help="1..30000 ms")
+    still.add_argument("--confirm-display", action="store_true")
     a = ap.parse_args(argv)
+    if a.cmd == "present-preview":
+        if not a.confirm_display:
+            print("presentation refused: --confirm-display required", file=sys.stderr)
+            return 2
+        from . import output
+        try:
+            frame = project.render_frame(project.Project.load(a.project), a.content)
+            output.present_still(frame, projector_x=a.projector_x,
+                                 projector_y=a.projector_y, duration_ms=a.duration_ms,
+                                 confirmed=True)
+        except (project.MissingInput, output.PresentationError, output.cv2.error,
+                OSError, ValueError, TypeError) as e:
+            print(f"presentation refused: {e}", file=sys.stderr)
+            return 2
+        return 0
     if a.cmd == "capture-graycode":
         from . import capture
         try:
