@@ -49,7 +49,27 @@ def main(argv=None):
     video.add_argument("--fps", type=float, default=24.0, help="bounded playback pacing 1..30")
     video.add_argument("--seconds", type=float, default=10.0, help="bounded duration 0..30")
     video.add_argument("--confirm-display", action="store_true", help="operator confirms destination projector")
+    multi = sub.add_parser("export-multi", help="offline warp/blend PNG outputs for 2-8 calibrated projectors")
+    multi.add_argument("content", help="shared content image")
+    multi.add_argument("output_dir", help="new output folder, never overwrite")
+    multi.add_argument("projects", nargs="+", help="2..8 calibrated clone JSON project files")
+    multi.add_argument("--gamma", type=float, default=2.2, help="blend gamma 0.5..4.0")
     a = ap.parse_args(argv)
+    if a.cmd == "export-multi":
+        from . import multi_output
+        try:
+            if not 2 <= len(a.projects) <= 8:
+                raise multi_output.MultiExportError("provide 2..8 project JSON files")
+            projects = [project.Project.load(p) for p in a.projects]
+            result = multi_output.export_multi(
+                projects, a.content, a.output_dir, gamma=a.gamma)
+        except (multi_output.MultiExportError, multi_output.cv2.error,
+                OSError, ValueError, TypeError, KeyError) as e:
+            print(f"multi-projector export refused: {e}", file=sys.stderr)
+            return 2
+        print(f"exported {len(result['projectors'])} projector previews to {a.output_dir}")
+        print("hardware_acceptance=NOT_VERIFIED")
+        return 0
     if a.cmd == "present-video":
         if not a.confirm_display:
             print("video refused: --confirm-display required", file=sys.stderr)
