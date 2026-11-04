@@ -80,7 +80,12 @@ def camera_frame_probe(camera_profile_path, *, confirmed=False, frames=8, warmup
     previous = None
     try:
         for _ in range(warmup):
-            if not stream.grab():
+            try:
+                ready = stream.grab()
+            except Exception:
+                # Native decoder/SDK exceptions may contain the private URI.
+                raise CameraProbeError("camera warmup decoder failed") from None
+            if not ready:
                 raise CameraProbeError("camera warmup failed")
         for _ in range(frames):
             try:
@@ -90,8 +95,9 @@ def camera_frame_probe(camera_profile_path, *, confirmed=False, frames=8, warmup
                 shape, small, metrics = _summarize_frame(frame)
             except CameraProbeError:
                 raise
-            except (cv2.error, OSError, ValueError, TypeError):
-                # Underlying OpenCV backend errors can contain private URL text.
+            except Exception:
+                # Any untrusted backend can raise an exception with its source
+                # URI/username in the message; do not echo it to the CLI.
                 raise CameraProbeError("camera decoder or frame acquisition failed") from None
             if shapes and shape != shapes[0]:
                 raise CameraProbeError("camera resolution changed during bounded probe")
