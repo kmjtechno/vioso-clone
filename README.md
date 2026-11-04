@@ -63,6 +63,16 @@ Use a Python environment with OpenCV and NumPy. PySide6 is optional for the GUI;
 
 The synthetic demo writes pNN/nNN camera images, a clone-format JSON project, warp.json, content.png and preview.png into a newly created temporary folder. It never uses a real camera or projector. The demo refuses an output folder containing existing files.
 
+## Read-only capture quality preflight (M25)
+
+After capturing Gray-code camera images and before calibration, run
+`vclone capture-check <capture-folder>`. It checks manifest/pattern integrity,
+pairwise contrast, decoded pixel coverage and projector-axis span without
+opening a camera/projector or writing files. See
+[the M25 capture quality guide](docs/M25_CAPTURE_QUALITY.md).
+This is software screening only, not optical calibration certification or
+native VIOSO 7 compatibility.
+
 ## Experimental real camera acquisition
 
 Only use with an explicitly identified external projector display and camera:
