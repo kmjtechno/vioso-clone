@@ -73,6 +73,15 @@ opening a camera/projector or writing files. See
 This is software screening only, not optical calibration certification or
 native VIOSO 7 compatibility.
 
+## Read-only two-projector seam check (M37)
+
+`vclone two-projector-check left.json right.json` inspects two clone-format
+calibrated meshes with **no camera or projector access**. It reports seam
+overlap, uncovered content, and detects insufficient or duplicate geometric
+overlap before blended output is attempted. Reports are software-only; real
+optical and physical acceptance remain unverified. See
+[M37 two-projector seam check](docs/M37_TWO_PROJECTOR_SEAM_CHECK.md).
+
 ## Camera-only live-frame preflight (M36)
 
 With projectors still **OFF**, the locally approved operator can use
