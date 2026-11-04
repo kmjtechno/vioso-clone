@@ -35,6 +35,13 @@ def main(argv=None):
                          help="read-only Windows display rectangles and optional offline camera profile")
     rig.add_argument("--expected-projectors", type=int, default=2, help="expected projectors (1..8)")
     rig.add_argument("--camera-profile", help="optional existing private camera source JSON; never connects")
+    probe = sub.add_parser("camera-frame-probe",
+                           help="opt-in bounded frames from one selected camera; no projector or saved pixels")
+    probe.add_argument("profile", help="private camera source JSON already on this PC")
+    probe.add_argument("--frames", type=int, default=8, help="observed frames (4..16)")
+    probe.add_argument("--warmup", type=int, default=1, help="discarded frames (0..6)")
+    probe.add_argument("--confirm-camera", action="store_true",
+                       help="I consent to opening only this camera source")
     source_check = sub.add_parser("camera-profile-check",
                                    help="validate camera source JSON offline without network/device access")
     source_check.add_argument("profile", help="existing private camera source JSON file")
@@ -234,6 +241,19 @@ def main(argv=None):
             return 2
         print(json.dumps(result, sort_keys=True))
         return 0 if result["display_layout_gate"] == "OPERATOR_MAPPING_REQUIRED" else 2
+    if a.cmd == "camera-frame-probe":
+        import json
+        from .camera_frame_probe import CameraProbeError, camera_frame_probe
+        try:
+            report = camera_frame_probe(
+                a.profile, confirmed=a.confirm_camera,
+                frames=a.frames, warmup=a.warmup)
+        except (CameraProbeError, ValueError, TypeError, OSError) as exc:
+            # CameraProbeError messages contain no IP, URL or credentials.
+            print(f"camera frame probe refused: {exc}", file=sys.stderr)
+            return 2
+        print(json.dumps(report, sort_keys=True))
+        return 0
     if a.cmd == "camera-profile-check":
         import json
         from .camera_sources import CameraSourceError, read_profile, profile_status
