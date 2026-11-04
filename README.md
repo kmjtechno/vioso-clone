@@ -73,6 +73,16 @@ opening a camera/projector or writing files. See
 This is software screening only, not optical calibration certification or
 native VIOSO 7 compatibility.
 
+## Offline fisheye camera lens calibration (M32)
+
+`vclone fisheye-calibrate <photos-folder> --cols 9 --rows 6 --square-mm 25`
+checks 12–48 raw fisheye checkerboard images and calculates an independent
+OpenCV fisheye intrinsic model, with distortion, RMS and tilt/coverage gates.
+No camera, projector or network session is opened. It does **not** yet
+change the live Gray-code pipeline; use the separate pinhole model only
+with appropriate non-fisheye webcams. Read the
+[M32 hardware calibration plan](docs/M32_FISHEYE_CAMERA_HARDWARE_PLAN.md).
+
 ## Read-only black-level frame diagnostic (M31)
 
 `vclone blacklevel-check <owner-measured-session.json>` analyzes independent
