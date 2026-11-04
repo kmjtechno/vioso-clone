@@ -62,6 +62,16 @@ def test_m41_never_resets_or_cleans_shared_checkout():
     assert "M41_EXISTING_P520_CHECKOUT=UNTOUCHED" in data
 
 
+
+def test_m41_git_python_path_multiplicity_is_resolved_to_one_binary():
+    data = source()
+    for name in ("git", "py", "python"):
+        expected = "Get-Command " + name + " -CommandType Application"
+        assert expected in data
+    assert data.count("Select-Object -First 1") == 3
+    assert "$GitExe = (Get-Command git -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source" in data
+
+
 def test_m41_gui_regression_runs_only_in_isolated_virtualenv():
     data = source()
     assert "Join-Path $Target '.venv'" in data
