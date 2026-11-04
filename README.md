@@ -18,6 +18,7 @@ This repository is source code, not a finished replacement for VIOSO 7. Syntheti
 | Experimental projector Gray-code / camera capture (M8) | Implemented, opt-in; **physical hardware not yet verified** |
 | Experimental calibrated still-frame projector output (M9) | Opt-in bounded OpenCV fullscreen; **not hardware/sync verified** |
 | Minimal PySide6 GUI | Implemented; not full commercial UI |
+| Camera calibration corner editor (M10) | Setup capture folder and select four image corners; physical accuracy unverified |
 | Player, remote and automation script modules | Implemented at software level; no real NDI/real-time output |
 | Original VIOSO 7 formats, proprietary render API, hardware parity | **Not implemented / not verified** |
 
@@ -47,6 +48,10 @@ A clone JSON project with valid calibration can render a corrected still frame o
     python -m vclone present-preview project.json content.png --projector-x 1920 --projector-y 0 --duration-ms 5000 --confirm-display
 
 This uses OpenCV fullscreen for a single still frame, not a synchronized video renderer or DirectX backend. The sample X=1920/Y=0 coordinates are **not autodetected**. See docs/M9_PROJECTOR_STILL_OUTPUT.md.
+
+## Select camera corners in the GUI
+
+Run `python -m vclone gui`, choose **Calibration → Setup capture folder and dimensions**, then **Calibration → Select camera corners**. Click the four corners in the p00.png camera image in TL → TR → BR → BL order. The editor validates convex geometry, sets matching content corners and invalidates stale calibration. Save the clone-format project through File → Save As before running Calibrate. See docs/M10_CAMERA_CORNER_EDITOR.md. The GUI does not automatically certify real hardware alignment.
 
 ## Calibration CLI
 
