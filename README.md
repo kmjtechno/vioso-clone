@@ -73,6 +73,16 @@ opening a camera/projector or writing files. See
 This is software screening only, not optical calibration certification or
 native VIOSO 7 compatibility.
 
+## P520 exact-main isolated Windows QA (M41)
+
+A protected, plan-only-by-default Windows PowerShell QA harness stages
+an **exact SHA** fresh clone under a **new sibling directory**, refusing
+stale remote main or any existing target. Explicit owner execution builds
+an isolated Python environment, runs full regression and offscreen GUI smoke
+while preserving the dirty shared checkout and never opening hardware.
+See [M41 isolated QA guidance](docs/M41_P520_ISOLATED_QA.md). The script
+does not install a signed Windows product or prove physical calibration.
+
 ## GUI opt-in live camera screening (M40)
 
 **Calibration > Probe selected camera (explicit consent)...** first
