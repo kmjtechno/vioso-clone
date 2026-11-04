@@ -1,0 +1,43 @@
+name: M14 Offline Multiprojector Blend Regression
+on:
+  push:
+    branches: [feat/m14-multiprojector-offline-export-20261104]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Linux Qt runtime
+        run: sudo apt-get update -qq && sudo apt-get install -y libegl1 libopengl0
+      - run: python -m pip install --disable-pip-version-check pytest numpy opencv-python-headless PySide6
+      - name: M14 offline multi-output tests
+        run: python -m pytest tests/test_m14_multi_output.py -q
+      - name: Full app Python regression
+        run: python -m pytest -q
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 16
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install --disable-pip-version-check pytest numpy opencv-python-headless PySide6
+      - name: M14 offline multi-output tests
+        run: python -m pytest tests/test_m14_multi_output.py -q
+      - name: Full app Python regression
+        run: python -m pytest -q
