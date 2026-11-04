@@ -127,3 +127,29 @@ def test_nonregular_paths_rejected(tmp_path):
 def test_unknown_header_not_misclassified_as_native():
     data = make_container()
     assert sps_probe.inspect_prefix(data, len(data)).native_compatibility == "NOT_VERIFIED"
+
+
+def test_spoofed_bin_offset_in_xml_comment_does_not_control_read_limit(tmp_path, monkeypatch):
+    original_header = sps._header(0, 2, 2, False)
+    deceptive_comment = b'  <!-- binOffset="00000000000000065530" -->\n'
+    header = original_header.replace(b'  <File ', deceptive_comment + b'  <File ', 1)
+    actual_offset = len(header)
+    header = header.replace(
+        b'<data binOffset="00000000000000000000"',
+        b'<data binOffset="' + f'{actual_offset:020d}'.encode() + b'"', 1
+    )
+    source = tmp_path / "comment.sps"
+    source.write_bytes(header + b"{}")
+    observed = bytearray()
+    real_read = sps_probe.os.read
+
+    def capture_read(fd, size):
+        value = real_read(fd, size)
+        observed.extend(value)
+        return value
+
+    monkeypatch.setattr(sps_probe.os, "read", capture_read)
+    evidence = sps_probe.inspect_file(source)
+    assert evidence.bin_offset == actual_offset
+    assert bytes(observed) == header
+    assert len(observed) == actual_offset
