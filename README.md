@@ -73,6 +73,17 @@ opening a camera/projector or writing files. See
 This is software screening only, not optical calibration certification or
 native VIOSO 7 compatibility.
 
+## Standalone portable Windows GUI alpha (M42)
+
+M42 adds an independently implemented **unsigned**, Python-bundled Windows
+GUI ZIP generated after green Windows CI on `main`. It offers the existing
+Qt GUI without a separately installed Python runtime. CI verifies the
+actual frozen executable, extracts the archive and repeats offscreen,
+camera-free GUI checks. GitHub's ephemeral release artifact is **not**
+installed on the owner's P520 and is not a signed commercial installer or
+physically verified calibration product. See
+[M42 portable Windows guide](docs/M42_WINDOWS_PORTABLE_GUI.md).
+
 ## P520 exact-main isolated Windows QA (M41)
 
 A protected, plan-only-by-default Windows PowerShell QA harness stages
