@@ -28,3 +28,24 @@ jobs:
         run: python -m pytest tests/test_m7_sps_probe.py -q
       - name: Full project regression
         run: python -m pytest -q
+
+  windows-regression:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    env:
+      PYTHONPATH: .
+      QT_QPA_PLATFORM: offscreen
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+    steps:
+      - name: Checkout exact branch commit on Windows
+        uses: actions/checkout@v4
+      - name: Python 3.13 on Windows
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install Windows test dependencies
+        run: python -m pip install --disable-pip-version-check pytest numpy opencv-python-headless
+      - name: Windows M5 M6 and M7 focused tests
+        run: python -m pytest tests/test_m5_sps.py tests/test_m6_sps_hardening.py tests/test_m7_sps_probe.py -q
+      - name: Windows full Python regression
+        run: python -m pytest -q
