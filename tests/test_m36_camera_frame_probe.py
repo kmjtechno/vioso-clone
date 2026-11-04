@@ -207,3 +207,36 @@ def test_error_from_camera_adapter_never_discloses_private_uri(tmp_path, monkeyp
     assert "DO_NOT_PRINT_THIS_RTSP_TOKEN" not in report.err
     assert "192.0.2.82" not in report.err
     assert not report.out
+
+
+
+def test_sdk_decoder_read_exception_is_redacted_and_released(tmp_path, monkeypatch, capsys):
+    path, uri = _profile(tmp_path)
+    class ExplodingCamera(FakeCapture):
+        def read(self):
+            raise RuntimeError("private camera failed: " + uri)
+    cam = ExplodingCamera(_frames(8))
+    monkeypatch.setattr(probe, "open_camera", lambda _: cam)
+    assert main(["camera-frame-probe", str(path), "--confirm-camera"]) == 2
+    result = capsys.readouterr()
+    assert "camera decoder or frame acquisition failed" in result.err
+    assert uri not in result.err
+    assert "DO_NOT_PRINT_THIS_RTSP_TOKEN" not in result.err
+    assert cam.released
+    assert not result.out
+
+
+def test_sdk_warmup_exception_is_redacted_and_released(tmp_path, monkeypatch, capsys):
+    path, uri = _profile(tmp_path)
+    class ExplodingWarmup(FakeCapture):
+        def grab(self):
+            raise RuntimeError("connection url: " + uri)
+    cam = ExplodingWarmup(_frames(8))
+    monkeypatch.setattr(probe, "open_camera", lambda _: cam)
+    assert main(["camera-frame-probe", str(path), "--confirm-camera"]) == 2
+    result = capsys.readouterr()
+    assert "camera warmup decoder failed" in result.err
+    assert uri not in result.err
+    assert "DO_NOT_PRINT_THIS_RTSP_TOKEN" not in result.err
+    assert cam.released
+    assert not result.out
