@@ -28,8 +28,11 @@ def content_image(tmp_path, value=200):
 
 def test_two_calibrated_projectors_generate_hashed_blended_outputs(tmp_path):
     content = content_image(tmp_path)
-    result = multi.export_multi([calibrated("p1"), calibrated("p2")], content,
-                                tmp_path / "new-output")
+    # An all-covered mask used to overflow float32 inside OpenCV distance
+    # transform; complete coverage must remain a finite blend calculation.
+    with np.errstate(over="raise", invalid="raise"):
+        result = multi.export_multi([calibrated("p1"), calibrated("p2")], content,
+                                    tmp_path / "new-output")
     assert result["schema"] == "kmj.multi-projector.offline.v1"
     assert result["hardware_acceptance"] == "NOT_VERIFIED"
     assert result["software_preview_only"] is True
