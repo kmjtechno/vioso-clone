@@ -59,6 +59,7 @@ def main(argv=None):
     multi.add_argument("output_dir", help="new output folder, never overwrite")
     multi.add_argument("projects", nargs="+", help="2..8 calibrated clone JSON project files")
     multi.add_argument("--gamma", type=float, default=2.2, help="blend gamma 0.5..4.0")
+    multi.add_argument("--color-balance", metavar="JSON", help="opt-in per-projector BGR preview gain/black subtraction profile")
     md = sub.add_parser("present-multi", help="show verified M14 PNGs on 2-8 selected desktops")
     md.add_argument("directory", help="M14 offline export directory")
     md.add_argument("--origin", action="append", required=True, help="x,y desktop coordinate (repeat per projector)")
@@ -116,12 +117,16 @@ def main(argv=None):
         return 0
     if a.cmd == "export-multi":
         from . import multi_output
+        from .color_balance import load_profile
         try:
             if not 2 <= len(a.projects) <= 8:
                 raise multi_output.MultiExportError("provide 2..8 project JSON files")
+            profiles = (None if a.color_balance is None else
+                        load_profile(a.color_balance, len(a.projects)))
             projects = [project.Project.load(p) for p in a.projects]
             result = multi_output.export_multi(
-                projects, a.content, a.output_dir, gamma=a.gamma)
+                projects, a.content, a.output_dir, gamma=a.gamma,
+                color_balance_profiles=profiles)
         except (multi_output.MultiExportError, multi_output.cv2.error,
                 OSError, ValueError, TypeError, KeyError) as e:
             print(f"multi-projector export refused: {e}", file=sys.stderr)
