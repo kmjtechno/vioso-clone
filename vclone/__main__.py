@@ -51,6 +51,10 @@ def main(argv=None):
     cq.add_argument("--min-valid-fraction", type=float, default=0.30, help="decoded valid camera fraction (0.01..1)")
     cq.add_argument("--min-axis-span", type=float, default=0.25, help="minimum decoded projector x/y span (0.01..1)")
     cq.add_argument("--camera-mask", help="8-bit grayscale camera mask PNG: black=include, white=exclude")
+    cq.add_argument("--fisheye-profile", metavar="JSON",
+                    help="opt-in previously measured M32 fisheye calibration JSON (raw frames only)")
+    cq.add_argument("--fisheye-balance", type=float, default=0.25,
+                    help="rectified pinhole crop/field-of-view balance 0..1")
     fish = sub.add_parser("fisheye-calibrate",
                           help="offline fisheye checkerboard photos: no camera access or file writes")
     fish.add_argument("directory", help="folder of 12..48 existing raw checkerboard photos")
@@ -198,12 +202,15 @@ def main(argv=None):
     if a.cmd == "capture-check":
         import json
         from .capture_check import CaptureCheckError, check_capture
+        from .fisheye_rectify import FisheyeRectifyError
         try:
             report = check_capture(a.directory, margin=a.margin,
                                    min_valid_fraction=a.min_valid_fraction,
                                    min_axis_span=a.min_axis_span,
-                                   camera_mask=a.camera_mask)
-        except (CaptureCheckError, ValueError, TypeError, OSError) as exc:
+                                   camera_mask=a.camera_mask,
+                                   fisheye_profile=a.fisheye_profile,
+                                   fisheye_balance=a.fisheye_balance)
+        except (CaptureCheckError, FisheyeRectifyError, ValueError, TypeError, OSError) as exc:
             print(f"capture quality refused: {exc}", file=sys.stderr)
             return 2
         print(json.dumps(report, sort_keys=True))
