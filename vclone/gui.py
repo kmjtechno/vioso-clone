@@ -1,10 +1,12 @@
 """Thin PySide6 front end over gui_model.Session. PySide6 is imported lazily by main()."""
 import sys
+from pathlib import Path
 
-from PySide6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QMainWindow, QMessageBox,
+from PySide6.QtWidgets import (QApplication, QDialog, QFileDialog, QHBoxLayout, QMainWindow, QMessageBox,
                                QPlainTextEdit, QPushButton, QVBoxLayout, QWidget)
 
 from .gui_model import Session, SessionError
+from .corner_editor import CornerPicker, ScanSetupDialog
 
 
 class MainWindow(QMainWindow):
@@ -32,6 +34,9 @@ class MainWindow(QMainWindow):
         m.addAction("&Save", self.save_project)
         m.addAction("Save &As...", self.save_project_as)
         m.addAction("&Quit", self.close)
+        calib_menu = self.menuBar().addMenu("&Calibration")
+        calib_menu.addAction("&Setup capture folder and dimensions...", self.setup_scan)
+        calib_menu.addAction("&Select camera corners...", self.select_corners)
         self.refresh()
 
     def refresh(self):
@@ -42,7 +47,7 @@ class MainWindow(QMainWindow):
     def _guard(self, fn, *a):
         try:
             fn(*a)
-        except SessionError as e:
+        except (SessionError, ValueError, OSError) as e:
             QMessageBox.warning(self, "VIOSO Clone", str(e))
         self.refresh()
 
@@ -63,6 +68,27 @@ class MainWindow(QMainWindow):
         f, _ = QFileDialog.getSaveFileName(self, "Save project", "", "Project (*.json)")
         if f:
             self._guard(self.session.save, f)
+
+
+    def setup_scan(self):
+        dialog = ScanSetupDialog(self.session.project.scan, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            directory, projector_size, content_size = dialog.values()
+            self._guard(self.session.configure_scan, directory, projector_size, content_size)
+
+    def select_corners(self):
+        folder = self.session.project.scan.get("dir")
+        if not folder:
+            QMessageBox.warning(self, "Camera corner setup", "Configure a capture folder first.")
+            return
+        source = Path(folder) / "p00.png"
+        try:
+            dialog = CornerPicker(source, self)
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, "Camera corner setup", str(exc))
+            return
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self._guard(self.session.set_camera_corners, dialog.points, dialog.image_size)
 
 
 def main(argv=None):
