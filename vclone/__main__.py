@@ -38,6 +38,7 @@ def main(argv=None):
     cq.add_argument("--margin", type=int, default=20, help="minimum absolute p/n contrast (0..254)")
     cq.add_argument("--min-valid-fraction", type=float, default=0.30, help="decoded valid camera fraction (0.01..1)")
     cq.add_argument("--min-axis-span", type=float, default=0.25, help="minimum decoded projector x/y span (0.01..1)")
+    cq.add_argument("--camera-mask", help="8-bit grayscale camera mask PNG: black=include, white=exclude")
     sub.add_parser("gui", help="launch the optional PySide6 project editor")
     still = sub.add_parser("present-preview", help="opt-in bounded calibrated still on a projector")
     still.add_argument("project", help="calibrated clone-format JSON project")
@@ -173,7 +174,8 @@ def main(argv=None):
         try:
             report = check_capture(a.directory, margin=a.margin,
                                    min_valid_fraction=a.min_valid_fraction,
-                                   min_axis_span=a.min_axis_span)
+                                   min_axis_span=a.min_axis_span,
+                                   camera_mask=a.camera_mask)
         except (CaptureCheckError, ValueError, TypeError, OSError) as exc:
             print(f"capture quality refused: {exc}", file=sys.stderr)
             return 2
