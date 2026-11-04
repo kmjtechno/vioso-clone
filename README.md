@@ -21,6 +21,7 @@ This repository is source code, not a finished replacement for VIOSO 7. Syntheti
 | Camera calibration corner editor (M10) | Setup capture folder and select four image corners; physical accuracy unverified |
 | Player, remote and automation script modules | Implemented at software level; no real NDI/real-time output |
 | Local calibrated video playback (M13) | Bounded single-projector CPU warp; no synchronized GPU/NDI/hardware acceptance |
+| Offline multi-projector blend/export (M14) | 2–8 calibrated PNG outputs with overlap weighting; no synchronized display |
 | Original VIOSO 7 formats, proprietary render API, hardware parity | **Not implemented / not verified** |
 
 ## Install as a Python package (M12)
@@ -77,6 +78,14 @@ With a valid calibrated clone project, and after confirming the projector displa
 
 The playback is CPU-warped, bounded to 30 seconds and at most 30 requested FPS. It is **not refresh-synchronized GPU video output**, and it does not include native VIOSO7 decoding, multi-projector genlock or NDI. See docs/M13_VIDEO_PLAYBACK.md.
 
+## Offline multi-projector blend previews
+
+For 2–8 independently calibrated clone projects sharing one content resolution:
+
+    vclone export-multi shared-content.png new-output-dir projector-1.json projector-2.json --gamma 2.2
+
+This writes a separate calibrated PNG for each projector and a hash-verified manifest in a **new** output directory, with content-space overlap blending. This is not simultaneous physical projector playback. See docs/M14_MULTI_PROJECTOR_OFFLINE.md.
+
 ## Calibration CLI
 
 Use the clone's own project.json with measured corner points and scan folder:
@@ -95,6 +104,7 @@ Do not treat a successful preview as hardware calibration proof. Design, editing
 - vclone/capture.py: opt-in camera/projector acquisition
 - vclone/output.py: opt-in bounded still-frame projector output
 - vclone/video_output.py: bounded opt-in local video decoding and CPU-warped fullscreen output
+- vclone/multi_output.py: offline multi-projector warp and normalized content-space overlap export
 - vclone/script.py, remote.py, player.py: software workflow components
 - examples/synthetic_demo.py: runnable end-to-end synthetic calibration
 - tests/: Python regression suites; hosted Windows/Linux CI tests synthetic workflows, not physical hardware
