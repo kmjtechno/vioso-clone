@@ -1,0 +1,87 @@
+name: M42 Windows Portable GUI Alpha
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "vclone/portable_entry.py"
+      - "tests/test_m42_portable_entry.py"
+      - "docs/M42_WINDOWS_PORTABLE_GUI.md"
+      - ".github/workflows/m42-windows-portable.yml"
+  push:
+    branches: [main]
+    paths:
+      - "vclone/portable_entry.py"
+      - "tests/test_m42_portable_entry.py"
+      - "docs/M42_WINDOWS_PORTABLE_GUI.md"
+      - ".github/workflows/m42-windows-portable.yml"
+permissions:
+  contents: read
+
+jobs:
+  windows-portable:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install open-source build and GUI dependencies
+        run: python -m pip install --disable-pip-version-check --no-input ".[gui,test]" "pyinstaller>=6.17,<7"
+      - name: Verify source and full regression before freezing
+        run: |
+          python -m pytest tests/test_m42_portable_entry.py -q
+          python -m pytest -q
+          python -m vclone.portable_entry --self-test
+      - name: Build unsigned portable Windows GUI executable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          python -m PyInstaller --noconfirm --clean --onedir --windowed --name KMJ-VIOSO-Clone --paths . --collect-submodules vclone vclone/portable_entry.py
+          if ($LASTEXITCODE -ne 0) { throw "M42_PYINSTALLER_BUILD_FAILED" }
+          $exe = Join-Path $PWD "dist/KMJ-VIOSO-Clone/KMJ-VIOSO-Clone.exe"
+          if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw "M42_PORTABLE_EXE_MISSING" }
+          Write-Output "M42_PORTABLE_EXE_CREATED=PASS"
+      - name: Offscreen test the ACTUAL frozen executable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $exe = Join-Path $PWD "dist/KMJ-VIOSO-Clone/KMJ-VIOSO-Clone.exe"
+          & $exe --self-test
+          if ($LASTEXITCODE -ne 0) { throw "M42_FROZEN_GUI_SELF_TEST_FAILED" }
+          & $exe --version
+          if ($LASTEXITCODE -ne 0) { throw "M42_FROZEN_VERSION_FAILED" }
+          Write-Output "M42_FROZEN_GUI_NO_HARDWARE_SMOKE=PASS"
+      - name: Package and verify extracted portable ZIP
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $folder = Join-Path $PWD "dist/KMJ-VIOSO-Clone"
+          $zip = Join-Path $PWD "dist/KMJ-VIOSO-Clone-alpha-win64.zip"
+          if (Test-Path -LiteralPath $zip) { throw "M42_ARCHIVE_ALREADY_EXISTS" }
+          Compress-Archive -LiteralPath $folder -DestinationPath $zip -CompressionLevel Optimal
+          if (-not (Test-Path -LiteralPath $zip -PathType Leaf)) { throw "M42_ARCHIVE_NOT_CREATED" }
+          $extract = Join-Path $env:RUNNER_TEMP "m42-extracted"
+          if (Test-Path -LiteralPath $extract) { throw "M42_EXTRACT_TARGET_EXISTS" }
+          Expand-Archive -LiteralPath $zip -DestinationPath $extract
+          $exe = Join-Path $extract "KMJ-VIOSO-Clone/KMJ-VIOSO-Clone.exe"
+          if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw "M42_EXTRACTED_EXE_MISSING" }
+          & $exe --self-test
+          if ($LASTEXITCODE -ne 0) { throw "M42_EXTRACTED_GUI_SELF_TEST_FAILED" }
+          $digest = Get-FileHash -LiteralPath $zip -Algorithm SHA256
+          if ($digest.Hash -notmatch "^[0-9A-F]{64}$") { throw "M42_ARCHIVE_HASH_UNAVAILABLE" }
+          Write-Output ("M42_PORTABLE_ZIP_SHA256=" + $digest.Hash)
+          Write-Output "M42_EXTRACTED_GUI_NO_HARDWARE_SMOKE=PASS"
+          Write-Output "M42_NATIVE_VIOSO7_COMPATIBILITY=NOT_VERIFIED"
+          Write-Output "M42_PHYSICAL_PROJECTOR_CALIBRATION=NOT_VERIFIED"
+          Write-Output "M42_AUTHENTICODE_SIGNATURE=NOT_PRESENT"
+      - name: Publish short-lived verified portable Windows zip from main only
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: KMJ-VIOSO-Clone-alpha-win64
+          path: dist/KMJ-VIOSO-Clone-alpha-win64.zip
+          retention-days: 3
+          if-no-files-found: error
