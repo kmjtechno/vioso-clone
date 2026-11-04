@@ -70,3 +70,14 @@ def test_portable_gui_launch_dispatch_is_explicit(monkeypatch):
     assert portable_entry.portable_main([]) == 0
     assert len(seen) == 1
     assert isinstance(seen[0], list) and len(seen[0]) == 1
+
+
+def test_portable_release_keeps_diagnosable_console_bootloader():
+    """Avoid the CI-proven failure of PyInstaller --windowed frozen self-test."""
+    from pathlib import Path
+    workflow = (
+        Path(__file__).resolve().parents[1] / ".github" / "workflows" /
+        "m42-windows-portable.yml").read_text(encoding="utf-8")
+    assert "--console --hide-console hide-early" in workflow
+    assert "--windowed" not in workflow
+    assert "M42_EXTRACTED_GUI_NO_HARDWARE_SMOKE=PASS" in workflow
