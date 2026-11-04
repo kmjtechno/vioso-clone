@@ -9,7 +9,9 @@ import numpy as np
 
 
 _MAX_SIDE = 16384
-_MAX_PIXELS = 1 << 27
+# CPU interpolation builds multiple float64 arrays per output pixel.
+# Cap at two 4K UHD frames' pixels rather than allowing 128M pixels (>several GB).
+_MAX_PIXELS = 2 * 4096 * 2160
 
 
 class UnsupportedOutput(NotImplementedError):
@@ -34,6 +36,9 @@ def render_projector(content, mesh, proj_size, alpha=None):
     """
     if not isinstance(content, np.ndarray) or content.ndim not in (2, 3) or content.size == 0:
         raise ValueError("content must be a non-empty (h, w) or (h, w, c) array")
+    if (content.dtype not in (np.uint8, np.uint16, np.int16, np.float32, np.float64)
+            or (content.ndim == 3 and content.shape[2] not in (1, 2, 3, 4))):
+        raise ValueError("content has unsupported channels or pixel dtype")
     mesh = np.asarray(mesh, np.float64)
     if mesh.ndim != 3 or mesh.shape[2] != 2 or mesh.shape[0] < 2 or mesh.shape[1] < 2:
         raise ValueError("mesh must be (ny>=2, nx>=2, 2)")
