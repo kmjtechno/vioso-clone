@@ -15,8 +15,13 @@ unsafe certificates or accept a publisher warning you cannot verify.
 
 ## Independent build/QA evidence
 
-The M42 Windows workflow builds a PyInstaller `--onedir --windowed` package
-and tests the full source regression before freezing. It invokes the actual
+The M42 Windows workflow builds a PyInstaller `--onedir --console --hide-console hide-early` package
+and tests the full source regression before freezing. The Windows bootloader
+hides its console when the owner launches the application by double-clicking
+and the process owns that console; when started from a developer's existing
+terminal, standard output remains available for bounded diagnostics. This
+avoids the tested PyInstaller `--windowed` runtime failure without weakening
+camera or projector confirmation gates. It invokes the actual
 frozen `--self-test` executable, packages the onedir folder as a ZIP, expands
 it into a new temporary directory, and re-runs the extracted executable's
 `--self-test`. The self-test creates a Qt window **offscreen**, verifies
