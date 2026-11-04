@@ -169,3 +169,19 @@ def test_camera_open_failure_releases_device(monkeypatch, tmp_path):
                                projector_x=1920, projector_y=0, confirmed=True)
     assert released == [True]
     assert not (tmp_path / "missing").exists()
+
+
+def test_capture_cli_refuses_without_display_confirmation(tmp_path, capsys, monkeypatch):
+    from vclone.__main__ import main
+
+    def never_open(*args, **kwargs):
+        raise AssertionError("no hardware use before explicit confirmation")
+
+    monkeypatch.setattr(capture.cv2, "VideoCapture", never_open)
+    out = tmp_path / "cli-guard"
+    result = main(["capture-graycode", "--width", "8", "--height", "6",
+                   "--out", str(out), "--camera", "0",
+                   "--projector-x", "1920", "--projector-y", "0"])
+    assert result == 2
+    assert "confirmation required" in capsys.readouterr().err
+    assert not out.exists()
