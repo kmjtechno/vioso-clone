@@ -27,11 +27,18 @@ def _shoot(pattern):
 
 def run(out_dir):
     out = Path(out_dir)
+    if out.is_symlink() or (out.exists() and (not out.is_dir() or any(out.iterdir()))):
+        raise FileExistsError("synthetic demo refuses a non-empty or symlink output directory")
     out.mkdir(parents=True, exist_ok=True)
+
+    def save_image(path, image):
+        if not cv2.imwrite(str(path), image):
+            raise OSError(f"cannot write synthetic demo image: {path}")
+
     pats, invs = calib.graycode_patterns(PW, PH)
     for i, (p, n) in enumerate(zip(pats, invs)):
-        cv2.imwrite(str(out / f"p{i:02d}.png"), _shoot(p))
-        cv2.imwrite(str(out / f"n{i:02d}.png"), _shoot(n))
+        save_image(out / f"p{i:02d}.png", _shoot(p))
+        save_image(out / f"n{i:02d}.png", _shoot(n))
     corners = np.array([[0, 0], [PW - 1, 0], [PW - 1, PH - 1], [0, PH - 1]], np.float64)
     cam_c = cv2.perspectiveTransform(corners.reshape(-1, 1, 2), HPC).reshape(-1, 2)
     proj = project.Project("synthetic-demo", scan={
@@ -45,7 +52,7 @@ def run(out_dir):
     content = np.zeros((480, 640, 3), np.uint8)
     content[::40] = 255
     content[:, ::40] = 255
-    cv2.imwrite(str(out / "content.png"), content)
+    save_image(out / "content.png", content)
     project.render_preview(done, out / "content.png", out / "preview.png")
     mesh = np.array(done.result["mesh"], dtype=float)
     err = float(max(np.abs(mesh[0, 0] - [0, 0]).max(), np.abs(mesh[-1, -1] - [639, 479]).max()))
