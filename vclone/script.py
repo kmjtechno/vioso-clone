@@ -154,7 +154,9 @@ def _exec_preview(task, defines, ctx, typ, sub):
         raise ScriptError("no project loaded")
     try:
         render_preview(ctx.project, _path(ctx, content), _path(ctx, out))
-    except MissingInput as e:
+    except (MissingInput, ValueError, OSError) as e:
+        # Preview's exclusive-create rejection must remain a ScriptError to
+        # XML automation callers; never let it overwrite an existing owner PNG.
         raise ScriptError(str(e)) from e
 
 

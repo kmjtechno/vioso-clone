@@ -19,7 +19,7 @@ def main(argv=None):
     d.add_argument("--file", default=str(DEPLOY / "SPDevices.ini"))
     c = sub.add_parser("spaces", help="list content spaces")
     c.add_argument("--file", default=str(DEPLOY / "SPContentSpaces.ini"))
-    v = sub.add_parser("preview", help="software-render content through a calibrated project mesh")
+    v = sub.add_parser("preview", help="software-render calibrated content to a NEW PNG; refuses overwrite")
     v.add_argument("project")
     v.add_argument("content")
     v.add_argument("out")
