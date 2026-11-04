@@ -77,20 +77,24 @@ def test_dtd_and_duplicate_data_rejected():
 
 def test_metadata_only_never_reads_payload(tmp_path, monkeypatch):
     path = tmp_path / "large.sps"
-    data = make_container()
+    secret_payload = b"\\x00PRIVATE_PAYLOAD_NOT_TO_READ"
+    data = make_container(secret_payload)
     path.write_bytes(data)
-    lengths = []
+    observed = bytearray()
     original = sps_probe.os.read
 
     def guarded_read(fd, length):
-        lengths.append(length)
-        assert length <= sps.MAX_HEADER_BYTES
-        return original(fd, length)
+        assert length == 1, "bulk read risks crossing into the binary payload"
+        chunk = original(fd, length)
+        observed.extend(chunk)
+        return chunk
 
     monkeypatch.setattr(sps_probe.os, "read", guarded_read)
     info = sps_probe.inspect_file(path)
     assert info.file_bytes == len(data)
-    assert lengths == [len(data)]
+    assert len(observed) == info.bin_offset
+    assert bytes(observed) == data[:info.bin_offset]
+    assert secret_payload not in observed
 
 
 def test_sparse_oversized_file_fails_before_any_read(tmp_path, monkeypatch):
