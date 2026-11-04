@@ -97,6 +97,14 @@ No original VIOSO code or native settings file is used.
 
 Run `python -m vclone gui`, choose **Calibration → Setup capture folder and dimensions**, then **Calibration → Select camera corners**. Click the four corners in the p00.png camera image in TL → TR → BR → BL order. The editor validates convex geometry, sets matching content corners and invalidates stale calibration. Save the clone-format project through File → Save As before running Calibrate. See docs/M10_CAMERA_CORNER_EDITOR.md. The GUI does not automatically certify real hardware alignment.
 
+## CPU calibration preview in GUI (M22)
+
+After a clone project has a calibrated mesh, choose **Calibration > Preview calibrated
+content (CPU)**, select a local image, and inspect the corrected projector frame
+inside the application. Optionally choose **Save CPU preview as new PNG**; the
+export refuses existing files and does not modify the project or use a projector.
+The preview is a software-only simulation and never certifies physical alignment.
+
 ## Experimental calibrated local video playback
 
 With a valid calibrated clone project, and after confirming the projector display's actual desktop position:

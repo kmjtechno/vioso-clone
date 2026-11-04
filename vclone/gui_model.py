@@ -2,6 +2,9 @@
 from pathlib import Path
 import json
 
+import cv2
+import numpy as np
+
 from .corners import content_corners, validate_corners, validate_size
 
 from .cmdline import STEPS
@@ -133,6 +136,46 @@ class Session:
         ]
         self.dirty = True
         self._note("camera corners updated: TL, TR, BR, BL (recalibration required)")
+
+    def preview_content(self, image_path):
+        """Render a CPU-only frame; no projector/window or project-file mutation."""
+        source = Path(image_path)
+        if source.is_symlink() or not source.is_file():
+            raise SessionError("preview image must be a regular non-symlink file")
+        try:
+            nbytes = source.stat().st_size
+            if not 0 < nbytes <= 128 * 1024 * 1024:
+                raise ValueError("preview input exceeds 128 MiB limit")
+            from .project import render_frame
+            frame = render_frame(self.project, source)
+        except (MissingInput, ValueError, TypeError, OSError, cv2.error) as exc:
+            raise SessionError(f"software preview failed: {exc}") from exc
+        if (not isinstance(frame, np.ndarray) or frame.dtype != np.uint8
+                or frame.ndim != 3 or frame.shape[2] != 3 or frame.size == 0):
+            raise SessionError("software preview returned an unsupported frame")
+        self._note("CPU preview ready; hardware_acceptance=NOT_VERIFIED")
+        return frame
+
+    def save_preview_png(self, frame, target_path):
+        """Export a rendered frame exclusively, never replacing an existing owner file."""
+        target = Path(target_path)
+        if target.suffix.lower() != ".png":
+            raise SessionError("preview output requires a .png extension")
+        if target.exists() or target.is_symlink() or not target.parent.is_dir() or target.parent.is_symlink():
+            raise SessionError("preview output must be a new regular path in an existing directory")
+        if (not isinstance(frame, np.ndarray) or frame.dtype != np.uint8 or
+                frame.ndim != 3 or frame.shape[2] != 3 or frame.size == 0):
+            raise SessionError("preview frame must be a nonempty uint8 BGR image")
+        try:
+            ok, buf = cv2.imencode(".png", frame)
+            if not ok:
+                raise ValueError("failed PNG encoding")
+            with target.open("xb") as handle:
+                handle.write(buf.tobytes())
+        except (OSError, ValueError, cv2.error) as exc:
+            raise SessionError(f"cannot save preview PNG: {exc}") from exc
+        self._note(f"saved CPU preview to {target}; hardware_acceptance=NOT_VERIFIED")
+        return target
 
     def steps(self):
         """[(step name, implemented)] in command-line order."""
