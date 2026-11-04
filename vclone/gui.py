@@ -52,6 +52,7 @@ class MainWindow(QMainWindow):
         calib_menu.addAction("&Capture Gray-code from camera...", self.capture_camera)
         calib_menu.addAction("&Select camera corners...", self.select_corners)
         calib_menu.addAction("&Preview calibrated content (CPU)...", self.preview_content)
+        calib_menu.addAction("Compare two-projector seam (offline)...", self.compare_two_projectors)
         self.refresh()
 
     def refresh(self):
@@ -140,6 +141,34 @@ class MainWindow(QMainWindow):
         if not target:
             return
         self._guard(self.session.save_preview_png, self._preview_frame, target)
+
+    def compare_two_projectors(self):
+        """Show a read-only software seam report; never activate projectors."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Choose a DIFFERENT calibrated projector project", "", "Project (*.json)")
+        if not path:
+            return
+        try:
+            report = self.session.compare_projector_seam(path)
+            gate = report["software_seam_gate"]
+            details = (
+                f"Software gate: {gate}\\n"
+                f"Overlap of smaller footprint: "
+                f"{100 * report['overlap_fraction_of_smaller_projector']:.1f}%\\n"
+                f"Combined content coverage: "
+                f"{100 * report['union_coverage_fraction']:.1f}%\\n"
+                f"Uncovered content: {100 * report['uncovered_fraction']:.1f}%\\n\\n"
+                "Physical optical acceptance: NOT VERIFIED\\n"
+                "Projector identification and synchronization: NOT VERIFIED\\n"
+                "No cameras or projectors were opened."
+            )
+            if gate == "PASS_SOFTWARE_GEOMETRY_ONLY":
+                QMessageBox.information(self, "Offline two-projector check", details)
+            else:
+                QMessageBox.warning(self, "Offline two-projector check", details)
+        except (SessionError, ValueError, TypeError, OSError) as exc:
+            QMessageBox.warning(self, "Offline two-projector check", str(exc))
+        self.refresh()
 
     def select_corners(self):
         folder = self.session.project.scan.get("dir")
