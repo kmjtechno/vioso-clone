@@ -177,6 +177,30 @@ class Session:
         self._note(f"saved CPU preview to {target}; hardware_acceptance=NOT_VERIFIED")
         return target
 
+    def compare_projector_seam(self, other_path):
+        """Read-only two-projector geometry check using the current in-memory project.
+
+        No saved project state, capture frame, camera, or display is modified.
+        Failed geometry is reported as an explicit software gate, not success.
+        """
+        from .two_projector_check import TwoProjectorError, check_two_projectors
+
+        if not other_path:
+            raise SessionError("select another calibrated projector project")
+        other = Path(other_path)
+        if self.path is not None and self.path.resolve() == other.resolve():
+            raise SessionError("choose a different second-projector file")
+        try:
+            candidate = Project.load(other)
+            report = check_two_projectors([self.project, candidate])
+        except (TwoProjectorError, ValueError, TypeError, KeyError, OSError) as exc:
+            raise SessionError(f"two-projector check refused: {exc}") from exc
+        self._note(
+            f"two-projector software geometry: {report['software_seam_gate']}; "
+            "hardware_optical_acceptance=NOT_VERIFIED"
+        )
+        return report
+
     def steps(self):
         """[(step name, implemented)] in command-line order."""
         return [(s, s in _IMPL and _IMPL[s] is not _licensing) for s in sorted(STEPS)]
