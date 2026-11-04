@@ -51,13 +51,15 @@ if (-not $Execute) {
 if ($env:OS -ne 'Windows_NT') {
     throw 'M41_EXECUTION_REQUIRES_WINDOWS'
 }
-$GitExe = (Get-Command git -CommandType Application -ErrorAction Stop).Source
-$PyLauncher = Get-Command py -CommandType Application -ErrorAction SilentlyContinue
+# Windows often exposes Git and Python through multiple PATH entries.
+# Select one actual executable, never stringify an array of command paths.
+$GitExe = (Get-Command git -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+$PyLauncher = Get-Command py -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($null -ne $PyLauncher) {
     $PythonExeForVenv = $PyLauncher.Source
     $PythonArgs = @('-3')
 } else {
-    $PythonExeForVenv = (Get-Command python -CommandType Application -ErrorAction Stop).Source
+    $PythonExeForVenv = (Get-Command python -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
     $PythonArgs = @()
 }
 # Disable prompting and use only the fixed, public, exact repository URL.
