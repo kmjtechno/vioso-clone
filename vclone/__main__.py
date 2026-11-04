@@ -31,6 +31,10 @@ def main(argv=None):
     source_group.add_argument("--camera", type=int, default=0, help="local OpenCV camera index")
     source_group.add_argument("--camera-profile", metavar="JSON",
                               help="private USB/RTSP/IP/replay/SDK camera source profile")
+    rig = sub.add_parser("rig-preflight",
+                         help="read-only Windows display rectangles and optional offline camera profile")
+    rig.add_argument("--expected-projectors", type=int, default=2, help="expected projectors (1..8)")
+    rig.add_argument("--camera-profile", help="optional existing private camera source JSON; never connects")
     source_check = sub.add_parser("camera-profile-check",
                                    help="validate camera source JSON offline without network/device access")
     source_check.add_argument("profile", help="existing private camera source JSON file")
@@ -204,6 +208,19 @@ def main(argv=None):
             return 2
         print(json.dumps(report, sort_keys=True))
         return 0
+    if a.cmd == "rig-preflight":
+        import json
+        from .rig_preflight import RigPreflightError, rig_preflight
+        from .camera_sources import CameraSourceError
+        try:
+            result = rig_preflight(
+                expected_projectors=a.expected_projectors,
+                camera_profile=a.camera_profile)
+        except (RigPreflightError, CameraSourceError, ValueError, TypeError, OSError) as exc:
+            print(f"rig preflight refused: {exc}", file=sys.stderr)
+            return 2
+        print(json.dumps(result, sort_keys=True))
+        return 0 if result["display_layout_gate"] == "OPERATOR_MAPPING_REQUIRED" else 2
     if a.cmd == "camera-profile-check":
         import json
         from .camera_sources import CameraSourceError, read_profile, profile_status
