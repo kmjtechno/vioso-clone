@@ -21,7 +21,7 @@ Official public documentation used for externally verifiable capability descript
 | Soft-edge blend | M14 normalized content-space overlap blending with gamma | Optical edge photometry and luminance/color gradients |
 | Per-projector color | M27 opt-in bounded BGR gain/black subtraction on software frames | Real measured colorimetric matching and linear-light response |
 | Black-level compensation | **Not implemented** as measured region-based black-level *uplift*; M27 encoded-black subtraction is not equivalent | Black-frame capture and region masks / measured projector response |
-| 3D camera pose from markers | Not implemented as direct marker-based PnP | Marker identifiers/3D coordinates, camera intrinsics and reprojection error QA |
+| 3D camera pose from markers | **M30 read-only OpenCV PnP RANSAC + LM with intrinsic/marker validation and reprojection gates** | Operator-mapped 3D markers, actual camera/lens data, projected physical alignment QA |
 | Multi-projector sync | M15 opt-in still previews, no frame lock | GPU swap-chain, NDI/DirectX timing and synchronized output |
 | Native VIOSO7 calibration format | Clone .sps only; read-only metadata probe | Owner-authorized native .sps sample + independent compatible spec and tests |
 

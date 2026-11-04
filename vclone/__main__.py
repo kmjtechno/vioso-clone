@@ -41,6 +41,11 @@ def main(argv=None):
     cq.add_argument("--min-valid-fraction", type=float, default=0.30, help="decoded valid camera fraction (0.01..1)")
     cq.add_argument("--min-axis-span", type=float, default=0.25, help="minimum decoded projector x/y span (0.01..1)")
     cq.add_argument("--camera-mask", help="8-bit grayscale camera mask PNG: black=include, white=exclude")
+    pose = sub.add_parser("estimate-camera-pose",
+                          help="read-only 3D marker PnP pose fit with reprojection gates")
+    pose.add_argument("markers", help="regular bounded marker correspondence JSON")
+    pose.add_argument("--max-rms-px", type=float, default=1.5)
+    pose.add_argument("--min-inlier-fraction", type=float, default=0.70)
     sub.add_parser("gui", help="launch the optional PySide6 project editor")
     still = sub.add_parser("present-preview", help="opt-in bounded calibrated still on a projector")
     still.add_argument("project", help="calibrated clone-format JSON project")
@@ -196,6 +201,18 @@ def main(argv=None):
             return 2
         print(f"saved {len(receipt.image_files)} image files to {a.out}")
         print(f"manifest: {Path(a.out) / 'capture_manifest.json'}")
+        return 0
+    if a.cmd == "estimate-camera-pose":
+        import json
+        from .camera_pose import CameraPoseError, load_markers, estimate_pose
+        try:
+            report = estimate_pose(load_markers(a.markers),
+                                   max_rms_px=a.max_rms_px,
+                                   min_inlier_fraction=a.min_inlier_fraction)
+        except (CameraPoseError, ValueError, OSError, TypeError) as exc:
+            print(f"camera pose refused: {exc}", file=sys.stderr)
+            return 2
+        print(json.dumps(report, sort_keys=True))
         return 0
     if a.cmd == "gui":
         try:

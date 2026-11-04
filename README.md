@@ -73,6 +73,15 @@ opening a camera/projector or writing files. See
 This is software screening only, not optical calibration certification or
 native VIOSO 7 compatibility.
 
+## Initial 3D camera pose from measured markers (M30)
+
+Use `vclone estimate-camera-pose <measured-markers.json>` to compute a
+fail-closed initial camera pose from independently measured 3D points, camera
+pixels and verified intrinsics. This read-only OpenCV PnP tool reports
+inlier/reprojection evidence; it is **not** physical alignment certification
+or a native VIOSO7 3D model converter.
+See [M30 marker pose guide](docs/M30_MARKER_CAMERA_POSE.md).
+
 ## Projector-side optical masking during capture (M29)
 
 The opt-in `capture-graycode` command accepts
