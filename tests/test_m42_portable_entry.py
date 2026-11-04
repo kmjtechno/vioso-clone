@@ -102,3 +102,13 @@ def test_private_prerelease_replaces_quota_blocked_actions_artifacts():
     assert "M42_AUTHENTICODE_SIGNED=NO" in release
     assert "M42_PRERELEASE_BINARY_ASSET_UNVERIFIED" in release
     assert "GITHUB_REF -ne 'refs/heads/main'" in release
+
+
+def test_prerelease_cli_probe_avoids_power_shell_early_pipe_close():
+    from pathlib import Path
+    workflow = (Path(__file__).resolve().parents[1] / ".github" /
+                "workflows" / "m42-windows-prerelease.yml").read_text(
+                    encoding="utf-8")
+    assert "gh --version | Select-Object -First 1" not in workflow
+    assert "Get-Command gh -CommandType Application" in workflow
+    assert "M42_GH_CLI_PRESENT=PASS" in workflow
