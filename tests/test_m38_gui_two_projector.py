@@ -67,6 +67,22 @@ def test_session_refuses_same_file_and_malformed_other_project(tmp_path):
     assert session.path == path and session.dirty is False
 
 
+def test_session_rejects_mismatched_content_space_without_mutation(tmp_path):
+    left = _project("left", 0, 100)
+    right = _project("right", 70, 159)
+    right.content_space = "unrelated-projection-canvas"
+    path = tmp_path / "other.json"
+    right.save(path)
+    before = path.read_bytes()
+    session = Session(left)
+    with pytest.raises(SessionError, match="space identifiers do not match"):
+        session.compare_projector_seam(path)
+    assert path.read_bytes() == before
+    assert session.project is left
+    assert session.dirty is False
+    assert session.log == []
+
+
 def test_gui_seam_action_offscreen_displays_explicit_software_limit(tmp_path, monkeypatch):
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     pytest.importorskip("PySide6")
