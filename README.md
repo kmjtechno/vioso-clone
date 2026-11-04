@@ -123,6 +123,17 @@ With a valid calibrated clone project, and after confirming the projector displa
 
 The playback is CPU-warped, bounded to 30 seconds and at most 30 requested FPS. It is **not refresh-synchronized GPU video output**, and it does not include native VIOSO7 decoding, multi-projector genlock or NDI. See docs/M13_VIDEO_PLAYBACK.md.
 
+## Opt-in color balance for offline multi-projector previews (M27)
+
+For 2–8 separate calibrated clone-format projectors, `export-multi` can apply
+per-projector bounded BGR gain and black subtraction from a strict JSON profile:
+
+    vclone export-multi content.png ./new-output p1.json p2.json --color-balance balance.json
+
+See [M27 color-balance preview](docs/M27_COLOR_BALANCE_PREVIEW.md) for the
+profile schema and verification limits. It does **not** measure actual projector
+black levels, gamma or colorimetry and does not claim hardware calibration.
+
 ## Offline multi-projector blend previews
 
 For 2–8 independently calibrated clone projects sharing one content resolution:
