@@ -16,6 +16,7 @@ import cv2
 import numpy as np
 
 from .projector_mask import read_projector_mask
+from .camera_sources import read_profile, open_camera
 
 MAX_PROJECTOR_PIXELS = 1920 * 1080
 MAX_CAMERA_PIXELS = 4096 * 2160
@@ -94,6 +95,7 @@ def capture_sequence(
     grab: Callable[[], np.ndarray],
     *,
     projector_mask: np.ndarray | None = None,
+    camera_source_kind: str | None = None,
 ) -> CaptureReceipt:
     """Acquire a bounded camera image for each projected pattern.
 
@@ -137,6 +139,12 @@ def capture_sequence(
                              pattern_count(w, h), tuple(names))
     manifest = out / "capture_manifest.json"
     manifest_data = asdict(receipt)
+    if camera_source_kind is not None:
+        # Do not persist RTSP URL, IP, credentials or camera serial.
+        from .camera_sources import TYPES
+        if camera_source_kind not in TYPES:
+            raise CaptureError("invalid camera source type for capture receipt")
+        manifest_data["camera_source_type"] = camera_source_kind
     if mask is not None:
         manifest_data["projector_mask_applied"] = True
         manifest_data["projector_mask_pixel_sha256"] = hashlib.sha256(mask.tobytes()).hexdigest()
@@ -156,6 +164,7 @@ def capture_opencv(
     warmup_frames: int = 2,
     confirmed: bool = False,
     projector_mask_path=None,
+    camera_profile_path=None,
 ) -> CaptureReceipt:
     """Use OpenCV display + VideoCapture on a locally approved projector/camera.
 
@@ -174,10 +183,14 @@ def capture_opencv(
     # Unsafe masks are refused before opening camera or projector windows.
     mask = (None if projector_mask_path is None else
             read_projector_mask(projector_mask_path, (width, height)))
-    camera = cv2.VideoCapture(camera_index)
+    # Source profiles are read/validated without logging private URLs.
+    # The old USB index remains the default for backward compatibility.
+    profile = None if camera_profile_path is None else read_profile(camera_profile_path)
+    camera = (cv2.VideoCapture(camera_index) if profile is None
+              else open_camera(profile))
     if not camera.isOpened():
         camera.release()
-        raise CaptureError(f"camera index {camera_index} is not available")
+        raise CaptureError("selected camera is not available")
     window = "KMJ Gray-code projector output"
     created = False
     try:
@@ -200,7 +213,9 @@ def capture_opencv(
                 raise CaptureError("camera capture failed")
             return frame
 
-        return capture_sequence(width, height, output_dir, show, grab, projector_mask=mask)
+        return capture_sequence(
+            width, height, output_dir, show, grab, projector_mask=mask,
+            camera_source_kind=None if profile is None else profile["type"])
     finally:
         camera.release()
         if created:
