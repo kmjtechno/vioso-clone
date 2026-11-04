@@ -73,6 +73,16 @@ opening a camera/projector or writing files. See
 This is software screening only, not optical calibration certification or
 native VIOSO 7 compatibility.
 
+## Read-only Windows dual-projector rig preflight (M34)
+
+`vclone rig-preflight --expected-projectors 2` inspects the current Windows
+desktop's display rectangles without opening projectors or cameras. An
+optional `--camera-profile` can be checked offline without network access.
+Two independent projector identities, power state and actual camera frames
+still require operator confirmation. See
+[M34 P520 rig preflight](docs/M34_P520_RIG_PREFLIGHT.md).
+Keep projectors OFF until on-site testing is explicitly requested.
+
 ## Camera-agnostic USB/IP capture profiles (M33)
 
 `vclone camera-profile-check <private-camera.json>` validates a chosen
