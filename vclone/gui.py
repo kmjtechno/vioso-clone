@@ -66,12 +66,21 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "VIOSO Clone", str(e))
         self.refresh()
 
+    def clear_preview(self):
+        """Drop stale previews whenever project calibration or identity may change."""
+        self._preview_frame = None
+        self.preview_export_button.setEnabled(False)
+        self.preview_label.clear()
+        self.preview_label.setText("CPU preview: choose Calibration > Preview calibrated content")
+
     def run_step(self, name):
+        self.clear_preview()
         self._guard(self.session.run, name)
 
     def open_project(self):
         f, _ = QFileDialog.getOpenFileName(self, "Open project", "", "Project (*.json)")
         if f:
+            self.clear_preview()
             self._guard(self.session.open, f)
 
     def save_project(self):
@@ -89,11 +98,13 @@ class MainWindow(QMainWindow):
         dialog = ScanSetupDialog(self.session.project.scan, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             directory, projector_size, content_size = dialog.values()
+            self.clear_preview()
             self._guard(self.session.configure_scan, directory, projector_size, content_size)
 
     def capture_camera(self):
         dialog = CaptureDialog(self.session.project.scan, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.clear_preview()
             self._guard(self.session.capture_camera_scan, *dialog.values())
 
     def preview_content(self):
@@ -142,6 +153,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Camera corner setup", str(exc))
             return
         if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.clear_preview()
             self._guard(self.session.set_camera_corners, dialog.points, dialog.image_size)
 
 
