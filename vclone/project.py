@@ -11,6 +11,7 @@ import cv2
 import numpy as np
 
 from . import calib, render
+from .optical_roi import read_camera_mask
 from . import sps as sps_io
 from .cmdline import STEPS, CmdLine
 from .configs import CameraIntrinsics
@@ -111,7 +112,17 @@ def _calibrate(project: Project) -> None:
         neg = [load(f"n{i:02d}.png") for i in range(n)]
         if any(im is None for im in pos + neg):
             raise MissingInput(f"expected {2 * n} capture files p00.png/n00.png... in {d}")
-        dec = calib.decode_graycode(pos, neg, (w, h))
+        mask = None
+        if "camera_mask" in sc:
+            # For clone project JSON, camera mask must be a basename inside
+            # the capture folder. Absolute/external paths are not followed.
+            name = sc["camera_mask"]
+            if (not isinstance(name, str) or name in ("", ".", "..")
+                    or Path(name).name != name or name.lower().split(".")[-1] != "png"
+                    or "/" in name or "\\" in name):
+                raise ValueError("camera_mask must be a PNG filename in scan directory")
+            mask = read_camera_mask(d / name, pos[0].shape)
+        dec = calib.decode_graycode(pos, neg, (w, h), camera_mask=mask)
         cam_mesh = calib.proj_to_cam_mesh(dec, (w, h), tuple(sc.get("nodes", (17, 9))))
         H = calib.cam_to_content_homography(sc["cam_corners"], sc["content_corners"])
         mesh = calib.warp_mesh(cam_mesh, H)
