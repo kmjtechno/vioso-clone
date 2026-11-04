@@ -73,6 +73,17 @@ opening a camera/projector or writing files. See
 This is software screening only, not optical calibration certification or
 native VIOSO 7 compatibility.
 
+## Camera-agnostic USB/IP capture profiles (M33)
+
+`vclone camera-profile-check <private-camera.json>` validates a chosen
+USB webcam, ONVIF-obtained RTSP stream, ordinary RTSP(S), HTTP(S) MJPEG,
+offline replay or explicitly registered industrial SDK camera adapter **without
+opening any device or LAN connection**. The opt-in `capture-graycode`
+command accepts `--camera-profile <private-camera.json>` in place of
+`--camera N`; `--confirm-display` is still mandatory. Native 2560×2560
+fisheye frames are now within the bounded capture QA size limit. See the
+[M33 camera source compatibility matrix](docs/M33_CAMERA_SOURCE_COMPATIBILITY.md).
+
 ## Offline fisheye camera lens calibration (M32)
 
 `vclone fisheye-calibrate <photos-folder> --cols 9 --rows 6 --square-mm 25`
