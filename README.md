@@ -73,6 +73,16 @@ opening a camera/projector or writing files. See
 This is software screening only, not optical calibration certification or
 native VIOSO 7 compatibility.
 
+## GUI offline camera and display rig checks (M39)
+
+Use **Calibration > Check camera profile (offline)...** to validate one
+private USB/RTSP/SDK JSON source without opening cameras or exposing URLs.
+Use **Calibration > Check Windows projector rig (read-only)...** to inspect
+Windows extended desktop rectangles for the dual-projector setup. Both
+actions preserve project state, operate with projectors OFF, and explicitly
+leave camera connection, physical display identity and optical acceptance
+unverified. See [M39 operator guide](docs/M39_GUI_CAMERA_RIG_PREFLIGHT.md).
+
 ## GUI two-projector seam check (M38)
 
 Open the first calibrated clone JSON in the PySide6 application, then use
