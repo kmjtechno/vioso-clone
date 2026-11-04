@@ -229,3 +229,58 @@ def test_mismatched_camera_resolution_refused_before_calibration(sample):
     with pytest.raises(CaptureCheckError, match="resolution"):
         check_capture(folder, fisheye_profile=fitted)
     assert project.result == {}
+
+
+def test_rectified_preview_new_png_is_exclusive_and_leaves_owner_files_unchanged(sample, capsys):
+    from vclone.fisheye_rectify import FisheyeRectifyError, export_rectified_preview
+
+    folder, fitted = sample
+    raw = folder / "p00.png"
+    original = _bytes(folder)
+    target = folder / "rectified-preview.png"
+    report = export_rectified_preview(raw, fitted, target)
+    assert report["rectification"] == "APPLIED"
+    assert report["hardware_optical_acceptance"] == "NOT_VERIFIED"
+    output = cv2.imread(str(target), cv2.IMREAD_UNCHANGED)
+    assert output.shape == (48, 64)
+    assert all((folder / filename).read_bytes() == value
+               for filename, value in original.items())
+    old_output = target.read_bytes()
+    with pytest.raises(FisheyeRectifyError, match="new PNG"):
+        export_rectified_preview(raw, fitted, target)
+    assert target.read_bytes() == old_output
+    assert main(["fisheye-rectify-preview", str(raw), str(fitted),
+                 str(folder / "second-rectified.png")]) == 0
+    receipt = json.loads(capsys.readouterr().out)
+    assert receipt["preview_created"] is True
+    assert receipt["hardware_optical_acceptance"] == "NOT_VERIFIED"
+
+
+def test_rectified_preview_refuses_owner_symlink_and_non_png_without_writes(sample):
+    from vclone.fisheye_rectify import FisheyeRectifyError, export_rectified_preview
+    folder, fitted = sample
+    source = folder / "p00.png"
+    before = source.read_bytes()
+    owner_target = folder / "owner.json"
+    owner_target.write_bytes(b"KEEP_OWNER_DATA")
+    bad = folder / "preview.txt"
+    with pytest.raises(FisheyeRectifyError, match="new PNG"):
+        export_rectified_preview(source, fitted, bad)
+    assert not bad.exists()
+    link = folder / "linked.png"
+    try:
+        link.symlink_to(owner_target)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks not available")
+    with pytest.raises(FisheyeRectifyError, match="new PNG"):
+        export_rectified_preview(source, fitted, link)
+    assert owner_target.read_bytes() == b"KEEP_OWNER_DATA"
+    assert source.read_bytes() == before
+
+
+def test_original_webcam_capture_quality_default_has_no_fisheye_receipt(sample):
+    folder, fitted = sample
+    result = check_capture(folder)
+    assert result["software_capture_quality"] == "PASS"
+    assert "fisheye_rectification" not in result
+    assert "fisheye_rectification" not in Project("default").result
