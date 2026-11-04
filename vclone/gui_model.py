@@ -47,6 +47,31 @@ class Session:
         self._note(f"saved {target}")
 
 
+    def capture_camera_scan(self, output_dir, projector_size, content_size, camera_index,
+                            projector_x, projector_y, settle_ms=250, warmup_frames=2,
+                            confirmed=False):
+        """Opt-in capture and configure only after an intact capture manifest exists."""
+        if not confirmed:
+            raise SessionError("physical projector display confirmation required")
+        pwidth, pheight = validate_size(projector_size, max_width=1920, max_height=1080)
+        cwidth, cheight = validate_size(content_size)
+        target = Path(output_dir).expanduser()
+        if (not str(output_dir).strip() or target.exists() or target.is_symlink()
+                or not target.parent.is_dir() or target.parent.is_symlink()):
+            raise SessionError("capture destination must be new under an existing regular folder")
+        from . import capture
+        try:
+            receipt = capture.capture_opencv(
+                pwidth, pheight, target, camera_index=camera_index,
+                projector_x=projector_x, projector_y=projector_y,
+                settle_ms=settle_ms, warmup_frames=warmup_frames, confirmed=True)
+            # configure_scan also validates the output image and capture manifest.
+            self.configure_scan(target, [pwidth, pheight], [cwidth, cheight])
+        except (capture.CaptureError, OSError, ValueError, TypeError, SessionError) as exc:
+            raise SessionError(f"capture not accepted: {exc}") from exc
+        self._note(f"captured {receipt.pattern_pairs} pattern pairs; hardware acceptance NOT_VERIFIED")
+        return receipt
+
     def configure_scan(self, directory, projector_size, content_size):
         """Configure a local camera capture directory without modifying its files."""
         pwidth, pheight = validate_size(projector_size, max_width=1920, max_height=1080)
