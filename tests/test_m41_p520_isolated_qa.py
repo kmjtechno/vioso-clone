@@ -56,7 +56,13 @@ def test_m41_isolated_destination_cannot_overwrite_existing_directory():
 def test_m41_never_resets_or_cleans_shared_checkout():
     data = source()
     assert not re.search(r"\b(?:git|\$GitExe)\s+(?:reset|clean|pull|push|switch)\b", data, re.I)
-    assert "Remove-Item" not in data
+    # Only process-local temporary Git auth environment variables are removed.
+    # Never permit filesystem deletion of source, projects or user notes.
+    for line in data.splitlines():
+        if "Remove-Item" in line:
+            assert re.fullmatch(
+                r"\s*Remove-Item Env:\\(?:GIT_CONFIG_(?:VALUE_0|KEY_0|COUNT)|"
+                r"M41_GITHUB_READ_TOKEN) -ErrorAction SilentlyContinue", line)
     assert "Clear-Content" not in data
     assert "Set-Content" not in data
     assert "M41_EXISTING_P520_CHECKOUT=UNTOUCHED" in data
