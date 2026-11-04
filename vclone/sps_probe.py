@@ -108,6 +108,10 @@ def inspect_file(path: str | os.PathLike[str]) -> SPSHeaderEvidence:
     source = Path(path)
     if source.is_symlink():
         raise ValueError("symlink .sps paths are not inspected")
+    # Windows may reject opening a directory before fstat can classify it.
+    # Guard special paths first, then recheck the opened file descriptor.
+    if not source.is_file():
+        raise ValueError("only regular .sps files can be inspected")
     flags = (os.O_RDONLY | getattr(os, "O_BINARY", 0)
              | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
     fd = os.open(source, flags)
