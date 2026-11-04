@@ -86,10 +86,26 @@ def export_multi(projects, content_path, output_dir, *, gamma=2.2):
     masks = [calib.coverage_mask(mesh, content_size) for mesh, _ in prepared]
     if any(not mask.any() for mask in masks):
         raise MultiExportError("one or more calibrated projectors have no content coverage")
+    if len(projects) * content_size[0] * content_size[1] > 32_000_000:
+        raise MultiExportError("projector count times content pixels exceeds CPU memory budget")
     alphas, linear_weights = calib.edge_blend_weights(masks, gamma=float(gamma))
     covered_count = np.sum(np.stack(masks, axis=0), axis=0)
     covered = covered_count > 0
+    # The existing distance-transform implementation returns zero right on
+    # mask boundaries, even when a pixel has coverage. Divide those boundary
+    # pixels equally across the covering projectors rather than leave a dark
+    # seam or falsely report that their blend sum is normalized.
     total_weights = np.sum(np.stack(linear_weights, axis=0), axis=0)
+    zero_weight = covered & (total_weights <= 1e-6)
+    if zero_weight.any():
+        count_safe = np.maximum(covered_count, 1)
+        for i, mask in enumerate(masks):
+            linear_weights[i][zero_weight] = (
+                mask[zero_weight].astype(np.float32)
+                / count_safe[zero_weight].astype(np.float32))
+        alphas = [np.power(weight, 1.0 / float(gamma)).astype(np.float32)
+                  for weight in linear_weights]
+        total_weights = np.sum(np.stack(linear_weights, axis=0), axis=0)
     if not np.allclose(total_weights[covered], 1.0, atol=1e-4):
         raise MultiExportError("overlap weights are not normalized")
 
