@@ -39,7 +39,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          python -m PyInstaller --noconfirm --clean --onedir --console --name KMJ-VIOSO-Clone --paths . --collect-submodules vclone vclone/portable_entry.py
+          python -m PyInstaller --noconfirm --clean --onedir --console --hide-console hide-early --name KMJ-VIOSO-Clone --paths . --collect-submodules vclone vclone/portable_entry.py
           if ($LASTEXITCODE -ne 0) { throw "M42_PYINSTALLER_BUILD_FAILED" }
           $exe = Join-Path $PWD "dist/KMJ-VIOSO-Clone/KMJ-VIOSO-Clone.exe"
           if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw "M42_PORTABLE_EXE_MISSING" }
