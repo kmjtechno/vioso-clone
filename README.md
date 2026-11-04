@@ -20,6 +20,7 @@ This repository is source code, not a finished replacement for VIOSO 7. Syntheti
 | Minimal PySide6 GUI | Implemented; not full commercial UI |
 | Camera calibration corner editor (M10) | Setup capture folder and select four image corners; physical accuracy unverified |
 | Player, remote and automation script modules | Implemented at software level; no real NDI/real-time output |
+| Local calibrated video playback (M13) | Bounded single-projector CPU warp; no synchronized GPU/NDI/hardware acceptance |
 | Original VIOSO 7 formats, proprietary render API, hardware parity | **Not implemented / not verified** |
 
 ## Install as a Python package (M12)
@@ -68,6 +69,14 @@ This uses OpenCV fullscreen for a single still frame, not a synchronized video r
 
 Run `python -m vclone gui`, choose **Calibration → Setup capture folder and dimensions**, then **Calibration → Select camera corners**. Click the four corners in the p00.png camera image in TL → TR → BR → BL order. The editor validates convex geometry, sets matching content corners and invalidates stale calibration. Save the clone-format project through File → Save As before running Calibrate. See docs/M10_CAMERA_CORNER_EDITOR.md. The GUI does not automatically certify real hardware alignment.
 
+## Experimental calibrated local video playback
+
+With a valid calibrated clone project, and after confirming the projector display's actual desktop position:
+
+    vclone present-video project.json local-video.mp4 --projector-x 1920 --projector-y 0 --fps 24 --seconds 10 --confirm-display
+
+The playback is CPU-warped, bounded to 30 seconds and at most 30 requested FPS. It is **not refresh-synchronized GPU video output**, and it does not include native VIOSO7 decoding, multi-projector genlock or NDI. See docs/M13_VIDEO_PLAYBACK.md.
+
 ## Calibration CLI
 
 Use the clone's own project.json with measured corner points and scan folder:
@@ -85,6 +94,7 @@ Do not treat a successful preview as hardware calibration proof. Design, editing
 - vclone/sps.py and sps_probe.py: clone SPS and read-only bounded metadata inspection
 - vclone/capture.py: opt-in camera/projector acquisition
 - vclone/output.py: opt-in bounded still-frame projector output
+- vclone/video_output.py: bounded opt-in local video decoding and CPU-warped fullscreen output
 - vclone/script.py, remote.py, player.py: software workflow components
 - examples/synthetic_demo.py: runnable end-to-end synthetic calibration
 - tests/: Python regression suites; hosted Windows/Linux CI tests synthetic workflows, not physical hardware
