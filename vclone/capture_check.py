@@ -112,8 +112,8 @@ def check_capture(directory, *, margin=20, min_valid_fraction=0.30,
     except ValueError as exc:
         raise CaptureCheckError("projector dimensions exceed capture limits") from exc
     camera = _integer_pair(raw.get("camera_size"), "camera", maximum=4096)
-    if camera[1] > 2160:
-        raise CaptureCheckError("camera height exceeds 2160")
+    # A native fisheye frame can be square (e.g. 2560x2560). Keep the
+    # MAX_CAMERA_PIXELS total-pixel budget enforced by _integer_pair.
     count = pattern_count(*proj)
     expected = [f"{pol}{i:02d}.png" for i in range(count) for pol in ("p", "n")]
     if (type(raw.get("pattern_pairs")) is not int or raw["pattern_pairs"] != count
