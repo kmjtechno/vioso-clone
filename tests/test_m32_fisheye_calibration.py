@@ -90,8 +90,10 @@ def test_invalid_fisheye_inputs_fail_closed(mode):
 ])
 def test_invalid_board_and_quality_bounds_rejected(kwargs):
     points, size, _ = synthetic_views()
+    config = {"square_mm": 22.0}
+    config.update(kwargs)
     with pytest.raises(fish.FisheyeCalibrationError):
-        fish.calibrate_observations(points, size, square_mm=22.0, **kwargs)
+        fish.calibrate_observations(points, size, **config)
 
 
 def test_offline_photo_loader_read_only_on_calibration(monkeypatch, tmp_path):
