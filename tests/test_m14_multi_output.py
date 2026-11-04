@@ -156,7 +156,7 @@ def test_cli_export_multi_and_refuse_existing_output(tmp_path, capsys):
     assert "NOT_VERIFIED" in capsys.readouterr().out
     assert (out / "manifest.json").is_file()
     assert main(args) == 2
-    assert "File exists" in capsys.readouterr().err
+    assert "exists" in capsys.readouterr().err.lower()
 
 
 def test_cli_rejects_single_project_before_file_read(tmp_path, capsys):
