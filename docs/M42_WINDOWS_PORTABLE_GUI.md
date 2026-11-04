@@ -3,7 +3,7 @@
 ## What the archive contains
 
 On a successful protected merge to `main`, GitHub Actions builds a
-`KMJ-VIOSO-Clone-alpha-win64.zip` artifact. It contains an independently
+`KMJ-VIOSO-Clone-alpha-win64.zip` ZIP. It contains an independently
 implemented, **unsigned** `KMJ-VIOSO-Clone.exe` plus the bundled Python,
 PySide6, OpenCV and NumPy runtime. It requires neither a separately installed
 Python interpreter nor any vendor VIOSO program on the target Windows PC.
@@ -30,16 +30,21 @@ a camera, network stream, projector, operating-system display control, project
 file or proprietary vendor binary.
 
 The job reports the ZIP SHA-256 digest and explicitly labels real hardware,
-native SPS interoperability and Authenticode signing **NOT VERIFIED**. Only
-a `push` to `main` uploads a short-lived artifact (3-day retention). PR
-builds smoke-test the code without accumulating a downloadable ZIP.
+native SPS interoperability and Authenticode signing **NOT VERIFIED**. The
+`pull_request` workflow builds and verifies without publishing. A separate
+`main`-push workflow rebuilds, verifies and publishes the ZIP as a **private
+GitHub prerelease asset**. It does not use GitHub Actions `upload-artifact`,
+because this repository/account has a verified Actions artifact storage quota
+block. GitHub Releases have a separate per-file 2 GiB asset cap with no total
+release storage/bandwidth cap ([official GitHub policy](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases)).
+No paid storage plan or outside provider is requested.
 
 ## Owner P520 usage — after independent verification
 
-Once a successfully completed `main` workflow is available, an authorized
-owner may retrieve its ZIP artifact via GitHub Actions, verify the artifact
-digest printed in that same job's build log and extract it to a **new**
-sibling folder; do not replace `E:\KMJ\Codex\VIOSO-Clone` or modify the
+Once a successfully completed `main` prerelease workflow is available, an
+authorized owner may retrieve the ZIP from the repository's **Releases >
+Pre-releases** page and verify the ZIP digest printed in that same workflow's
+build log. Extract it to a **new** sibling folder; do not replace `E:\KMJ\Codex\VIOSO-Clone` or modify the
 dirty `feat/sps-container-m5` checkout and REA notes. Launch the extracted
 `KMJ-VIOSO-Clone.exe` without administrator privileges.
 
@@ -59,6 +64,10 @@ observation must be explicitly confirmed in-app; the two projectors can stay
 - Proprietary VIOSO 7 `.sps` binary interoperability, vendor feature parity:
   **NOT VERIFIED**
 - Signed installer and operating-system trust chain: **NOT PRESENT**
+
+For repeated builds each prerelease tag includes its exact 12-character source
+commit prefix; it is deliberately marked prerelease rather than latest/stable.
+GitHub Actions minutes are still subject to the existing account limits.
 
 Track actual two-projector QA under
 [Issue #67](https://github.com/kmjtechno/vioso-clone/issues/67).
