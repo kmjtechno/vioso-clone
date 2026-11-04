@@ -41,7 +41,33 @@ def main(argv=None):
     still.add_argument("--projector-y", type=int, required=True)
     still.add_argument("--duration-ms", type=int, default=5000, help="1..30000 ms")
     still.add_argument("--confirm-display", action="store_true")
+    video = sub.add_parser("present-video", help="experimental bounded local video through calibrated CPU mesh")
+    video.add_argument("project", help="calibrated clone JSON project")
+    video.add_argument("video", help="local MP4/MOV/AVI/MKV/WEBM file")
+    video.add_argument("--projector-x", type=int, required=True)
+    video.add_argument("--projector-y", type=int, required=True)
+    video.add_argument("--fps", type=float, default=24.0, help="bounded playback pacing 1..30")
+    video.add_argument("--seconds", type=float, default=10.0, help="bounded duration 0..30")
+    video.add_argument("--confirm-display", action="store_true", help="operator confirms destination projector")
     a = ap.parse_args(argv)
+    if a.cmd == "present-video":
+        if not a.confirm_display:
+            print("video refused: --confirm-display required", file=sys.stderr)
+            return 2
+        from . import video_output
+        try:
+            receipt = video_output.play_file(
+                project.Project.load(a.project), a.video,
+                projector_x=a.projector_x, projector_y=a.projector_y,
+                fps=a.fps, seconds=a.seconds, confirmed=True)
+        except (project.MissingInput, video_output.VideoPlaybackError, video_output.cv2.error,
+                OSError, ValueError, TypeError) as e:
+            print(f"video refused: {e}", file=sys.stderr)
+            return 2
+        print(f"video preview completed: {receipt.frames_presented} frames, "
+              f"escape={receipt.stopped_by_escape}, "
+              f"hardware_acceptance={receipt.hardware_acceptance}")
+        return 0
     if a.cmd == "present-preview":
         if not a.confirm_display:
             print("presentation refused: --confirm-display required", file=sys.stderr)
