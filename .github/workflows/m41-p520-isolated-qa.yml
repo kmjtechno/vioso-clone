@@ -1,0 +1,73 @@
+name: M41 P520 Isolated Windows Exact-SHA QA
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/windows/P520-VIOSO-EXACT-MAIN-ISOLATED-QA-M41.ps1"
+      - "tests/test_m41_p520_isolated_qa.py"
+      - "docs/M41_P520_ISOLATED_QA.md"
+      - ".github/workflows/m41-p520-isolated-qa.yml"
+permissions:
+  contents: read
+jobs:
+  windows-isolated:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      QT_QPA_PLATFORM: offscreen
+      GIT_TERMINAL_PROMPT: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Verify source-level M41 safety rules
+        run: |
+          python -m pip install --disable-pip-version-check pytest
+          python -m pytest tests/test_m41_p520_isolated_qa.py -q
+      - name: Parse PowerShell and prove default dry-run has no writes
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $script = Join-Path $PWD 'scripts/windows/P520-VIOSO-EXACT-MAIN-ISOLATED-QA-M41.ps1'
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile($script, [ref]$tokens, [ref]$errors) > $null
+          if ($errors.Count -ne 0) { throw ('M41_POWERSHELL_PARSE_FAILED=' + $errors.Count) }
+          $root = Join-Path $env:RUNNER_TEMP 'm41 plan only root'
+          New-Item -ItemType Directory -Path $root -ErrorAction Stop > $null
+          $fakeSha = '0123456789abcdef0123456789abcdef01234567'
+          $receipt = @(& $script -ExpectedMainSha $fakeSha -WorkspaceRoot $root)
+          if ($receipt -notcontains 'M41_PLAN_ONLY=PASS_NO_NETWORK_NO_WRITES') { throw 'PLAN_ONLY_RECEIPT_MISSING' }
+          $target = Join-Path $root ('vioso-clone-isolated-' + $fakeSha.Substring(0, 12))
+          if (Test-Path -LiteralPath $target) { throw 'PLAN_ONLY_CREATED_TARGET' }
+          $malformedRefused = $false
+          try {
+            & $script -ExpectedMainSha 'not-a-sha' -WorkspaceRoot $root > $null
+          } catch {
+            $malformedRefused = $_.Exception.Message -like '*M41_EXPECTED_MAIN_SHA*'
+          }
+          if (-not $malformedRefused) { throw 'BAD_SHA_NOT_REFUSED' }
+          New-Item -ItemType Directory -Path $target -ErrorAction Stop > $null
+          $existingRefused = $false
+          try {
+            & $script -ExpectedMainSha $fakeSha -WorkspaceRoot $root > $null
+          } catch {
+            $existingRefused = $_.Exception.Message -like '*M41_TARGET_EXISTS_REFUSE*'
+          }
+          if (-not $existingRefused) { throw 'EXISTING_TARGET_NOT_REFUSED' }
+          Write-Output 'M41_PARSER_AND_NO_WRITE_PLAN=PASS'
+      - name: Exercise exact-main isolated clone, venv, full suite, GUI smoke
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $script = Join-Path $PWD 'scripts/windows/P520-VIOSO-EXACT-MAIN-ISOLATED-QA-M41.ps1'
+          $root = Join-Path $env:RUNNER_TEMP 'm41 execute root'
+          New-Item -ItemType Directory -Path $root -ErrorAction Stop > $null
+          $lines = @(git ls-remote --heads https://github.com/kmjtechno/vioso-clone.git main)
+          if ($LASTEXITCODE -ne 0 -or $lines.Count -ne 1) { throw 'REMOTE_MAIN_LOOKUP_FAILED' }
+          $sha = ($lines[0] -split '\s+')[0]
+          if ($sha -notmatch '^[0-9a-f]{40}$') { throw 'REMOTE_MAIN_HASH_INVALID' }
+          & $script -ExpectedMainSha $sha -WorkspaceRoot $root -Execute
+          if (-not $?) { throw 'ISOLATED_EXECUTION_FAILED' }
+          Write-Output 'M41_CI_ISOLATED_WINDOWS_E2E=PASS'
