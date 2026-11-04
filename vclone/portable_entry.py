@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import sys
 
-from . import __version__
+from vclone import __version__
 
 
 def portable_main(argv=None):
@@ -23,7 +23,7 @@ def portable_main(argv=None):
 
         os.environ["QT_QPA_PLATFORM"] = "offscreen"
         from PySide6.QtWidgets import QApplication
-        from .gui import MainWindow
+        from vclone.gui import MainWindow
 
         app = QApplication.instance() or QApplication([])
         window = MainWindow()
@@ -50,7 +50,7 @@ def portable_main(argv=None):
         # Reject unexpected arguments before making a QApplication or touching
         # camera/device code. Do not accept implicit physical action flags.
         return 2
-    from .gui import main as gui_main
+    from vclone.gui import main as gui_main
 
     return gui_main([sys.argv[0]])
 
