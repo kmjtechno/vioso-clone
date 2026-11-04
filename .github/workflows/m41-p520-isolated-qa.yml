@@ -58,6 +58,8 @@ jobs:
           if (-not $existingRefused) { throw 'EXISTING_TARGET_NOT_REFUSED' }
           Write-Output 'M41_PARSER_AND_NO_WRITE_PLAN=PASS'
       - name: Exercise exact-main isolated clone, venv, full suite, GUI smoke
+        env:
+          M41_GITHUB_READ_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
