@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 
 from . import calib, render
+from . import sps as sps_io
 from .cmdline import STEPS, CmdLine
 from .configs import CameraIntrinsics
 
@@ -169,8 +170,13 @@ def run_cmdline(cl: CmdLine) -> int:
     if not step:
         return 0
     sps = cl.values.get("sps")
-    is_json = bool(sps) and Path(sps).suffix == ".json"
-    proj = Project.load(sps) if is_json and Path(sps).exists() else Project()
+    suffix = Path(sps).suffix.lower() if sps else ""
+    is_json, is_sps = suffix == ".json", suffix == ".sps"
+    persist = is_json or is_sps
+    if persist and Path(sps).exists():
+        proj = Project.load(sps) if is_json else sps_io.load(sps)
+    else:
+        proj = Project()
     try:
         run_step(proj, step)
     except NotImplementedStep as e:
@@ -184,4 +190,6 @@ def run_cmdline(cl: CmdLine) -> int:
         return 4
     if is_json:
         proj.save(sps)
+    elif is_sps:
+        sps_io.save(proj, sps)
     return 0
