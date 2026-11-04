@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (QApplication, QDialog, QFileDialog, QHBoxLayout, 
 
 from .gui_model import Session, SessionError
 from .corner_editor import CornerPicker, ScanSetupDialog
+from .capture_dialog import CaptureDialog
 
 
 class MainWindow(QMainWindow):
@@ -36,6 +37,7 @@ class MainWindow(QMainWindow):
         m.addAction("&Quit", self.close)
         calib_menu = self.menuBar().addMenu("&Calibration")
         calib_menu.addAction("&Setup capture folder and dimensions...", self.setup_scan)
+        calib_menu.addAction("&Capture Gray-code from camera...", self.capture_camera)
         calib_menu.addAction("&Select camera corners...", self.select_corners)
         self.refresh()
 
@@ -75,6 +77,11 @@ class MainWindow(QMainWindow):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             directory, projector_size, content_size = dialog.values()
             self._guard(self.session.configure_scan, directory, projector_size, content_size)
+
+    def capture_camera(self):
+        dialog = CaptureDialog(self.session.project.scan, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self._guard(self.session.capture_camera_scan, *dialog.values())
 
     def select_corners(self):
         folder = self.session.project.scan.get("dir")
