@@ -77,7 +77,7 @@ def test_dtd_and_duplicate_data_rejected():
 
 def test_metadata_only_never_reads_payload(tmp_path, monkeypatch):
     path = tmp_path / "large.sps"
-    secret_payload = b"\\x00PRIVATE_PAYLOAD_NOT_TO_READ"
+    secret_payload = b"\x00PRIVATE_PAYLOAD_NOT_TO_READ"
     data = make_container(secret_payload)
     path.write_bytes(data)
     observed = bytearray()
