@@ -15,7 +15,7 @@ Official public documentation used for externally verifiable capability descript
 | --- | --- | --- |
 | Projector gray-code capture/decoding | M2/M8 capture and synthetic decoder; M25 read-only scan quality; **M28 camera ROI masking** | Measured camera/projector capture with fixed focus and repeatability |
 | Camera field of view and mask | M28 strict black-included/white-excluded grayscale camera ROI applies to capture quality and project scan decode | Interactive mask editor; operator camera ROI confirmation |
-| Projector pre-scan masks/cropping | Existing M14 content coverage/overlap mask for offline blend; **not** equivalent to projector pre-scan mask | Independently implement projector-facing per-output mask |
+| Projector pre-scan masks/cropping | **M29 opt-in grayscale projector-space mask applied to Gray-code patterns before projection**; M14 separately masks offline content overlap | GUI mask editor, operator optical overspill and dome cropping validation |
 | Flat screen geometry/homography | M2 homography and warp mesh, synthetic | Real projected corners, reprojection RMS and lens distortion |
 | Curved/dome/irregular geometry | M2 multi-plane fitting, content-space mesh | Lens-model/intrinsics-aware surface estimation and physical dome QA |
 | Soft-edge blend | M14 normalized content-space overlap blending with gamma | Optical edge photometry and luminance/color gradients |

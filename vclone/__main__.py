@@ -33,6 +33,8 @@ def main(argv=None):
     cam.add_argument("--settle-ms", type=int, default=250, help="settling time per projected frame")
     cam.add_argument("--warmup-frames", type=int, default=2, help="discarded camera frames per pattern")
     cam.add_argument("--confirm-display", action="store_true", help="I verified the projector display coordinates")
+    cam.add_argument("--projector-mask", metavar="PNG",
+                     help="8-bit grayscale projector-space mask: black=blocked, white=projected")
     cq = sub.add_parser("capture-check", help="read-only Gray-code capture image integrity and decoding quality")
     cq.add_argument("directory", help="existing clone Gray-code capture folder")
     cq.add_argument("--margin", type=int, default=20, help="minimum absolute p/n contrast (0..254)")
@@ -188,7 +190,7 @@ def main(argv=None):
                 a.width, a.height, a.out, camera_index=a.camera,
                 projector_x=a.projector_x, projector_y=a.projector_y,
                 settle_ms=a.settle_ms, warmup_frames=a.warmup_frames,
-                confirmed=a.confirm_display)
+                confirmed=a.confirm_display, projector_mask_path=a.projector_mask)
         except (capture.CaptureError, capture.cv2.error, OSError, ValueError) as e:
             print(f"capture refused: {e}", file=sys.stderr)
             return 2

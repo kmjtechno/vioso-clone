@@ -30,6 +30,9 @@ jobs:
       - name: Build wheel
         run: python -m build --wheel
       - name: Publish short-lived alpha wheel artifact
+        # PRs build and install the wheel but avoid accumulating artifacts;
+        # actual release pushes retain the downloadable wheel requirement.
+        if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
           name: kmj-vioso-clone-0.2.0a1-wheel

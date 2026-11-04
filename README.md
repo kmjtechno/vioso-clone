@@ -73,6 +73,16 @@ opening a camera/projector or writing files. See
 This is software screening only, not optical calibration certification or
 native VIOSO 7 compatibility.
 
+## Projector-side optical masking during capture (M29)
+
+The opt-in `capture-graycode` command accepts
+`--projector-mask projector-mask.png`. Unlike the **camera ROI mask**
+(which uses black=include), the projector mask uses black=blocked,
+white=projected and gray=partial intensity. Strict mask bounds and the
+existing `--confirm-display` gate apply. This only restricts *projected*
+scan patterns and does not claim optical calibration acceptance.
+See [M29 projector scan mask](docs/M29_PROJECTOR_SCAN_MASK.md).
+
 ## Optical camera ROI masking (M28)
 
 Use `vclone capture-check <folder> --camera-mask <binary-mask.png>` to inspect
