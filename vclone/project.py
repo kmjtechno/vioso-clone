@@ -12,6 +12,7 @@ import numpy as np
 
 from . import calib, render
 from .optical_roi import read_camera_mask
+from .fisheye_rectify import FisheyeRectifier, read_fisheye_profile
 from . import sps as sps_io
 from .cmdline import STEPS, CmdLine
 from .configs import CameraIntrinsics
@@ -122,6 +123,23 @@ def _calibrate(project: Project) -> None:
                     or "/" in name or "\\" in name):
                 raise ValueError("camera_mask must be a PNG filename in scan directory")
             mask = read_camera_mask(d / name, pos[0].shape)
+        rectification = None
+        if "fisheye_profile" in sc:
+            name = sc["fisheye_profile"]
+            # Keep all calibration assets inside the captured project folder.
+            if (not isinstance(name, str) or not name or name in (".", "..")
+                    or Path(name).name != name or not name.lower().endswith(".json")
+                    or "/" in name or "\\" in name):
+                raise ValueError("fisheye_profile must be a JSON basename in scan directory")
+            rectifier = FisheyeRectifier(
+                read_fisheye_profile(d / name),
+                balance=sc.get("fisheye_balance", 0.25))
+            if rectifier.size != (pos[0].shape[1], pos[0].shape[0]):
+                raise ValueError("fisheye calibration resolution differs from capture")
+            pos = [rectifier.image(frame) for frame in pos]
+            neg = [rectifier.image(frame) for frame in neg]
+            mask = rectifier.mask(mask) if mask is not None else rectifier.valid.copy()
+            rectification = rectifier.report()
         dec = calib.decode_graycode(pos, neg, (w, h), camera_mask=mask)
         cam_mesh = calib.proj_to_cam_mesh(dec, (w, h), tuple(sc.get("nodes", (17, 9))))
         H = calib.cam_to_content_homography(sc["cam_corners"], sc["content_corners"])
@@ -129,6 +147,8 @@ def _calibrate(project: Project) -> None:
         cov = calib.coverage_mask(mesh, tuple(sc["content_size"]))
         project.result = {"mesh": np.where(np.isnan(mesh), None, mesh).tolist(),
                           "coverage": float(cov.mean())}
+        if rectification is not None:
+            project.result["fisheye_rectification"] = rectification
     except (ValueError, TypeError, OverflowError) as e:
         raise InvalidInput(f"invalid scan configuration: {e}") from e
 

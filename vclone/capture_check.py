@@ -17,6 +17,7 @@ import numpy as np
 from .capture import (MANIFEST_SCHEMA, MAX_CAMERA_PIXELS,
                       pattern_count, _size)
 from .optical_roi import read_camera_mask
+from .fisheye_rectify import FisheyeRectifier, read_fisheye_profile
 
 MAX_MANIFEST_BYTES = 16 * 1024
 MAX_CAPTURE_BYTES = 128 * 1024 * 1024
@@ -72,7 +73,8 @@ def _binary_from_gray(gray: np.ndarray) -> np.ndarray:
 
 
 def check_capture(directory, *, margin=20, min_valid_fraction=0.30,
-                  min_axis_span=0.25, camera_mask=None) -> dict:
+                  min_axis_span=0.25, camera_mask=None,
+                  fisheye_profile=None, fisheye_balance=0.25) -> dict:
     """Inspect strict clone capture v1 manifest and all Gray-code pairs.
 
     Uses bounded streaming arrays rather than retaining every full-resolution
@@ -124,6 +126,13 @@ def check_capture(directory, *, margin=20, min_valid_fraction=0.30,
     w, h = camera
     roi = (np.ones((h, w), dtype=np.bool_) if camera_mask is None
            else read_camera_mask(camera_mask, (h, w)))
+    rectifier = None
+    if fisheye_profile is not None:
+        rectifier = FisheyeRectifier(
+            read_fisheye_profile(fisheye_profile), balance=fisheye_balance)
+        if rectifier.size != camera:
+            raise CaptureCheckError("fisheye profile camera resolution differs from capture")
+        roi = rectifier.mask(roi)
     roi_pixels = int(np.count_nonzero(roi))
     valid = roi.copy()
     gx = np.zeros((h, w), dtype=np.uint16)
@@ -133,6 +142,8 @@ def check_capture(directory, *, margin=20, min_valid_fraction=0.30,
     for i in range(count):
         pos = _read_png(folder / expected[2 * i], camera)
         neg = _read_png(folder / expected[2 * i + 1], camera)
+        if rectifier is not None:
+            pos, neg = rectifier.image(pos), rectifier.image(neg)
         diff = pos.astype(np.int16) - neg.astype(np.int16)
         reliable = np.abs(diff) > margin
         valid &= reliable
@@ -152,7 +163,7 @@ def check_capture(directory, *, margin=20, min_valid_fraction=0.30,
     if min(x_span, y_span) < min_axis_span:
         raise CaptureCheckError("decoded projector coordinate span below gate")
 
-    return {
+    report = {
         "schema": "kmj.graycode.capture-check.v1",
         "software_capture_quality": "PASS",
         "hardware_acceptance": "NOT_VERIFIED",
@@ -167,3 +178,6 @@ def check_capture(directory, *, margin=20, min_valid_fraction=0.30,
         "decoded_valid_fraction": round(valid_fraction, 6),
         "projector_axis_span_fraction": [round(x_span, 6), round(y_span, 6)],
     }
+    if rectifier is not None:
+        report["fisheye_rectification"] = rectifier.report()
+    return report

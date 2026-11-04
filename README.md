@@ -73,6 +73,17 @@ opening a camera/projector or writing files. See
 This is software screening only, not optical calibration certification or
 native VIOSO 7 compatibility.
 
+## Fisheye rectified optical calibration (M35)
+
+Raw, owner-calibrated fisheye Gray-code frames can now be remapped into a
+virtual-pinhole camera space **before** `capture-check` and `Calibrate`,
+using an M32 JSON profile. `fisheye-rectify-preview` exclusively writes
+a **new** rectified grayscale PNG for measuring camera corners; optional
+M28 camera masks are remapped in the same space. Webcam behavior remains
+unchanged unless fisheye correction is explicitly selected. This is
+software integration, not native VIOSO 7 or physical projector acceptance.
+See [M35 fisheye optical calibration](docs/M35_FISHEYE_RECTIFIED_CALIBRATION.md).
+
 ## Read-only Windows dual-projector rig preflight (M34)
 
 `vclone rig-preflight --expected-projectors 2` inspects the current Windows
