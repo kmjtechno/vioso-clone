@@ -73,6 +73,16 @@ opening a camera/projector or writing files. See
 This is software screening only, not optical calibration certification or
 native VIOSO 7 compatibility.
 
+## GUI opt-in live camera screening (M40)
+
+**Calibration > Probe selected camera (explicit consent)...** first
+validates the chosen private source profile offline. Only a separate
+affirmative Yes (default No) starts an asynchronous 6-frame camera-only
+test. Aggregate source quality and exposure warnings are shown without
+saving images or opening projector windows. It does not certify optical
+alignment or native VIOSO formats. See
+[M40 camera-only GUI guide](docs/M40_GUI_OPTIN_CAMERA_PROBE.md).
+
 ## GUI offline camera and display rig checks (M39)
 
 Use **Calibration > Check camera profile (offline)...** to validate one
