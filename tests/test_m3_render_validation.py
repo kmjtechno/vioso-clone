@@ -53,3 +53,19 @@ def test_alpha_must_be_finite_and_within_unit_range(alpha):
 def test_valid_alpha_still_scales_output():
     out = render.render_projector(IMG, MESH, (30, 20), alpha=np.full((40, 60), 0.5))
     assert abs(int(out[10, 15, 0]) - 64) <= 1
+
+
+def test_large_cpu_output_refused_before_interpolation():
+    # 8192x2161 is within per-axis bounds but exceeds the bounded CPU pixel budget.
+    with pytest.raises(ValueError, match="proj_size"):
+        render.render_projector(IMG, MESH, (8192, 2161))
+
+
+@pytest.mark.parametrize("bad_content", [
+    np.zeros((4, 4, 5), np.uint8),
+    np.zeros((4, 4, 3), np.int64),
+    np.zeros((4, 4, 3), dtype=object),
+])
+def test_unsupported_pixel_formats_fail_closed(bad_content):
+    with pytest.raises(ValueError, match="content"):
+        render.render_projector(bad_content, MESH, (30, 20))
