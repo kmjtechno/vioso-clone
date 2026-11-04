@@ -160,3 +160,32 @@ class FisheyeRectifier:
             "hardware_optical_acceptance": "NOT_VERIFIED",
             "native_vioso_sps_compatible": False,
         }
+
+
+def export_rectified_preview(raw_path, profile_path, destination, *, balance=0.25):
+    """Write a NEW rectified grayscale PNG exclusively; never overwrite owner data.
+
+    Useful for measuring virtual-pinhole camera corners before Calibrate. The
+    raw fisheye PNG, calibration profile and original capture are read-only.
+    """
+    from .capture_check import _read_png
+
+    target = Path(destination)
+    if (target.suffix.lower() != ".png" or target.is_symlink()
+            or target.exists() or not target.parent.is_dir()
+            or target.parent.is_symlink()):
+        raise FisheyeRectifyError("preview destination must be a new PNG in a regular directory")
+    rectifier = FisheyeRectifier(read_fisheye_profile(profile_path), balance=balance)
+    raw = _read_png(Path(raw_path), rectifier.size)
+    preview = rectifier.image(raw)
+    try:
+        ok, payload = cv2.imencode(".png", preview)
+    except cv2.error as exc:
+        raise FisheyeRectifyError("fisheye PNG preview encoding failed") from exc
+    if not ok:
+        raise FisheyeRectifyError("fisheye PNG preview encoding failed")
+    # Reject an existing owner file even if it appears between path checking
+    # and output open (without truncating either image or project file).
+    with target.open("xb") as file:
+        file.write(payload.tobytes())
+    return rectifier.report()
