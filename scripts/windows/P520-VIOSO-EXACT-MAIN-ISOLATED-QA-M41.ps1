@@ -81,6 +81,9 @@ if ($HasEphemeralToken) {
     $Auth = $null
     $Encoded = $null
 }
+# Run Git outside the invoking checkout so its local extraheader/filters
+# cannot add a second credential or affect the new, isolated clone.
+Push-Location -LiteralPath $Root
 try {
     $RemoteLines = @(& $GitExe ls-remote --heads $RepoUrl main)
     Assert-NativeSuccess 'REMOTE_MAIN_LOOKUP'
@@ -102,6 +105,7 @@ try {
     & $GitExe -c core.hooksPath=NUL clone --no-checkout --single-branch --depth 1 --branch main -- $RepoUrl $Target
     Assert-NativeSuccess 'FRESH_CLONE'
 } finally {
+    Pop-Location
     if ($HasEphemeralToken) {
         # Never pass a repo access token to checkout filters, Python/pip, or tests.
         Remove-Item Env:\GIT_CONFIG_VALUE_0 -ErrorAction SilentlyContinue
