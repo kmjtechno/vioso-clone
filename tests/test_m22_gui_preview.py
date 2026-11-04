@@ -98,3 +98,29 @@ def test_qt_preview_and_save_ui_smoke(tmp_path, monkeypatch):
     assert dest.is_file()
     assert s.dirty is False
     window.close()
+
+
+def test_switching_project_invalidates_old_preview(tmp_path, monkeypatch):
+    pytest.importorskip("PySide6")
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication, QFileDialog
+    from vclone.gui import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    old = _calibrated_session()
+    window = MainWindow(old)
+    src = _source(tmp_path)
+    monkeypatch.setattr(
+        QFileDialog, "getOpenFileName", lambda *args, **kwargs: (str(src), "PNG"))
+    window.preview_content()
+    assert window.preview_export_button.isEnabled()
+    next_project = tmp_path / "another.json"
+    Project("other").save(next_project)
+    monkeypatch.setattr(
+        QFileDialog, "getOpenFileName", lambda *args, **kwargs: (str(next_project), "JSON"))
+    window.open_project()
+    assert old.project.name == "other"
+    assert not window.preview_export_button.isEnabled()
+    assert window._preview_frame is None
+    assert "CPU preview" in window.preview_label.text()
+    window.close()
