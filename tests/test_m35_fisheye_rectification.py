@@ -17,7 +17,7 @@ from vclone.fisheye_rectify import (
 from vclone.project import InvalidInput, Project, run_step
 
 
-def profile(w=64, h=48):
+def profile(w=64, h=64):
     return {
         "schema": "kmj.fisheye.intrinsics.v1",
         "lens_model": "opencv_fisheye",
@@ -47,7 +47,7 @@ def sample(tmp_path):
     def grab():
         return state[0].copy()
 
-    capture.capture_sequence(64, 48, folder, show, grab)
+    capture.capture_sequence(64, 64, folder, show, grab)
     fitted = folder / "fisheye-model.json"
     fitted.write_text(json.dumps(profile()), encoding="utf-8")
     return folder, fitted
@@ -59,7 +59,7 @@ def _bytes(folder):
 
 def test_fisheye_rectifier_maps_without_touching_raw_image():
     lens = FisheyeRectifier(profile())
-    raw = np.tile(np.arange(64, dtype=np.uint8), (48, 1))
+    raw = np.tile(np.arange(64, dtype=np.uint8), (64, 1))
     before = raw.copy()
     rectified = lens.image(raw)
     assert rectified.shape == raw.shape
@@ -68,7 +68,7 @@ def test_fisheye_rectifier_maps_without_touching_raw_image():
     np.testing.assert_array_equal(raw, before)
     assert lens.report()["hardware_optical_acceptance"] == "NOT_VERIFIED"
     assert lens.report()["native_vioso_sps_compatible"] is False
-    assert lens.valid_pixels > 64 * 48 // 2
+    assert lens.valid_pixels > 64 * 64 // 2
 
 
 def test_fisheye_rectifier_does_not_interpret_pinhole_coefficients():
@@ -103,9 +103,9 @@ def test_fail_closed_for_invalid_model_and_profile_metadata(field, value):
 
 def test_raw_frame_shape_dtype_and_balance_guard():
     rect = FisheyeRectifier(profile())
-    for image in (np.zeros((47, 64), dtype=np.uint8),
-                  np.zeros((48, 64), dtype=np.float32),
-                  np.zeros((48, 64, 3), dtype=np.uint8)):
+    for image in (np.zeros((63, 64), dtype=np.uint8),
+                  np.zeros((64, 64), dtype=np.float32),
+                  np.zeros((64, 64, 3), dtype=np.uint8)):
         with pytest.raises(FisheyeRectifyError, match="raw fisheye"):
             rect.image(image)
     for balance in (-0.01, 1.01, float("nan"), True):
@@ -115,7 +115,7 @@ def test_raw_frame_shape_dtype_and_balance_guard():
 
 def test_rectified_raw_camera_roi_only_includes_safe_sensor_pixels():
     rect = FisheyeRectifier(profile())
-    raw = np.zeros((48, 64), dtype=bool)
+    raw = np.zeros((64, 64), dtype=bool)
     raw[5:-5, 20:44] = True
     result = rect.mask(raw)
     assert result.shape == raw.shape
@@ -123,7 +123,7 @@ def test_rectified_raw_camera_roi_only_includes_safe_sensor_pixels():
     assert result.any() and not np.any(result & ~rect.valid)
     assert not raw[0].any()
     with pytest.raises(FisheyeRectifyError, match="camera ROI"):
-        rect.mask(np.zeros((48, 64), bool))
+        rect.mask(np.zeros((64, 64), bool))
 
 
 def test_read_only_profile_loader_rejects_links_and_oversized_json(sample):
@@ -152,7 +152,7 @@ def test_capture_quality_uses_fisheye_rectification_without_writing_originals(sa
     assert report["software_capture_quality"] == "PASS"
     assert report["hardware_acceptance"] == "NOT_VERIFIED"
     assert report["fisheye_rectification"]["rectification"] == "APPLIED"
-    assert report["camera_size"] == [64, 48]
+    assert report["camera_size"] == [64, 64]
     assert report["decoded_valid_fraction"] >= 0.25
     assert main(["capture-check", str(folder), "--fisheye-profile",
                  str(fitted), "--min-valid-fraction", "0.25"]) == 0
@@ -163,7 +163,7 @@ def test_capture_quality_uses_fisheye_rectification_without_writing_originals(sa
 
 def test_raw_roi_plus_fisheye_rectification_correctly_combined(sample):
     folder, fitted = sample
-    mask = np.zeros((48, 64), dtype=np.uint8)
+    mask = np.zeros((64, 64), dtype=np.uint8)
     mask[:, :13] = 255  # M28 black=included, white=excluded
     roi_path = folder / "raw-roi.png"
     assert cv2.imwrite(str(roi_path), mask)
@@ -180,11 +180,11 @@ def test_calibrate_path_uses_fisheye_and_preserves_all_owner_capture_bytes(sampl
     before = _bytes(folder)
     project = Project("optical-fisheye")
     project.scan = {
-        "dir": str(folder), "proj_size": [64, 48],
-        "content_size": [64, 48], "nodes": [5, 4],
+        "dir": str(folder), "proj_size": [64, 64],
+        "content_size": [64, 64], "nodes": [5, 4],
         # Measured in virtual, rectified camera pixel coordinates.
-        "cam_corners": [[0, 0], [63, 0], [63, 47], [0, 47]],
-        "content_corners": [[0, 0], [63, 0], [63, 47], [0, 47]],
+        "cam_corners": [[0, 0], [63, 0], [63, 63], [0, 47]],
+        "content_corners": [[0, 0], [63, 0], [63, 63], [0, 47]],
         "fisheye_profile": fitted.name,
     }
     run_step(project, "Calibrate")
@@ -201,10 +201,10 @@ def test_bad_calibrate_profile_path_preserves_result_and_source(sample, name):
     folder, _ = sample
     project = Project("guarded")
     project.scan = {
-        "dir": str(folder), "proj_size": [64, 48],
-        "content_size": [64, 48],
-        "cam_corners": [[0, 0], [63, 0], [63, 47], [0, 47]],
-        "content_corners": [[0, 0], [63, 0], [63, 47], [0, 47]],
+        "dir": str(folder), "proj_size": [64, 64],
+        "content_size": [64, 64],
+        "cam_corners": [[0, 0], [63, 0], [63, 63], [0, 47]],
+        "content_corners": [[0, 0], [63, 0], [63, 63], [0, 47]],
         "fisheye_profile": name,
     }
     with pytest.raises(InvalidInput, match="fisheye_profile"):
@@ -218,10 +218,10 @@ def test_mismatched_camera_resolution_refused_before_calibration(sample):
     fitted.write_text(json.dumps(bad))
     project = Project("bad-source")
     project.scan = {
-        "dir": str(folder), "proj_size": [64, 48],
-        "content_size": [64, 48],
-        "cam_corners": [[0, 0], [63, 0], [63, 47], [0, 47]],
-        "content_corners": [[0, 0], [63, 0], [63, 47], [0, 47]],
+        "dir": str(folder), "proj_size": [64, 64],
+        "content_size": [64, 64],
+        "cam_corners": [[0, 0], [63, 0], [63, 63], [0, 47]],
+        "content_corners": [[0, 0], [63, 0], [63, 63], [0, 47]],
         "fisheye_profile": fitted.name,
     }
     with pytest.raises(InvalidInput, match="resolution"):
@@ -242,7 +242,7 @@ def test_rectified_preview_new_png_is_exclusive_and_leaves_owner_files_unchanged
     assert report["rectification"] == "APPLIED"
     assert report["hardware_optical_acceptance"] == "NOT_VERIFIED"
     output = cv2.imread(str(target), cv2.IMREAD_UNCHANGED)
-    assert output.shape == (48, 64)
+    assert output.shape == (64, 64)
     assert all((folder / filename).read_bytes() == value
                for filename, value in original.items())
     old_output = target.read_bytes()
