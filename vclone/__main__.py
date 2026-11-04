@@ -41,6 +41,13 @@ def main(argv=None):
     cq.add_argument("--min-valid-fraction", type=float, default=0.30, help="decoded valid camera fraction (0.01..1)")
     cq.add_argument("--min-axis-span", type=float, default=0.25, help="minimum decoded projector x/y span (0.01..1)")
     cq.add_argument("--camera-mask", help="8-bit grayscale camera mask PNG: black=include, white=exclude")
+    fish = sub.add_parser("fisheye-calibrate",
+                          help="offline fisheye checkerboard photos: no camera access or file writes")
+    fish.add_argument("directory", help="folder of 12..48 existing raw checkerboard photos")
+    fish.add_argument("--cols", type=int, default=9, help="internal chessboard corners horizontally")
+    fish.add_argument("--rows", type=int, default=6, help="internal chessboard corners vertically")
+    fish.add_argument("--square-mm", type=float, default=25.0, help="actual checkerboard square size")
+    fish.add_argument("--max-rms-px", type=float, default=1.5, help="fit RMS quality gate 0.1..5")
     bl = sub.add_parser("blacklevel-check",
                         help="read-only camera black-frame overlap intensity diagnostic")
     bl.add_argument("manifest", help="bounded black-frame capture JSON in sample folder")
@@ -204,6 +211,18 @@ def main(argv=None):
             return 2
         print(f"saved {len(receipt.image_files)} image files to {a.out}")
         print(f"manifest: {Path(a.out) / 'capture_manifest.json'}")
+        return 0
+    if a.cmd == "fisheye-calibrate":
+        import json
+        from .fisheye_calibration import FisheyeCalibrationError, calibrate_photo_folder
+        try:
+            result = calibrate_photo_folder(
+                a.directory, cols=a.cols, rows=a.rows,
+                square_mm=a.square_mm, max_rms_px=a.max_rms_px)
+        except (FisheyeCalibrationError, OSError, ValueError, TypeError) as exc:
+            print(f"fisheye calibration refused: {exc}", file=sys.stderr)
+            return 2
+        print(json.dumps(result, sort_keys=True))
         return 0
     if a.cmd == "blacklevel-check":
         import json
