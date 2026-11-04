@@ -16,6 +16,7 @@ import numpy as np
 
 from .capture import (MANIFEST_SCHEMA, MAX_CAMERA_PIXELS,
                       pattern_count, _size)
+from .optical_roi import read_camera_mask
 
 MAX_MANIFEST_BYTES = 16 * 1024
 MAX_CAPTURE_BYTES = 128 * 1024 * 1024
@@ -71,7 +72,7 @@ def _binary_from_gray(gray: np.ndarray) -> np.ndarray:
 
 
 def check_capture(directory, *, margin=20, min_valid_fraction=0.30,
-                  min_axis_span=0.25) -> dict:
+                  min_axis_span=0.25, camera_mask=None) -> dict:
     """Inspect strict clone capture v1 manifest and all Gray-code pairs.
 
     Uses bounded streaming arrays rather than retaining every full-resolution
@@ -121,7 +122,10 @@ def check_capture(directory, *, margin=20, min_valid_fraction=0.30,
         raise CaptureCheckError("manifest pattern list, count or evidence status mismatch")
 
     w, h = camera
-    valid = np.ones((h, w), dtype=np.bool_)
+    roi = (np.ones((h, w), dtype=np.bool_) if camera_mask is None
+           else read_camera_mask(camera_mask, (h, w)))
+    roi_pixels = int(np.count_nonzero(roi))
+    valid = roi.copy()
     gx = np.zeros((h, w), dtype=np.uint16)
     gy = np.zeros((h, w), dtype=np.uint16)
     x_bits = max(1, (proj[0] - 1).bit_length())
@@ -132,14 +136,14 @@ def check_capture(directory, *, margin=20, min_valid_fraction=0.30,
         diff = pos.astype(np.int16) - neg.astype(np.int16)
         reliable = np.abs(diff) > margin
         valid &= reliable
-        per_pair.append(float(reliable.mean()))
+        per_pair.append(float(np.count_nonzero(reliable & roi) / roi_pixels))
         destination = gx if i < x_bits else gy
         destination[:] = (destination << 1) | (diff > 0)
         del pos, neg, diff, reliable
     x = _binary_from_gray(gx)
     y = _binary_from_gray(gy)
     valid &= (x < proj[0]) & (y < proj[1])
-    valid_fraction = float(valid.mean())
+    valid_fraction = float(np.count_nonzero(valid) / roi_pixels)
     if valid_fraction < min_valid_fraction:
         raise CaptureCheckError("Gray-code decoded valid-pixel fraction below gate")
     xs, ys = x[valid], y[valid]
@@ -155,6 +159,8 @@ def check_capture(directory, *, margin=20, min_valid_fraction=0.30,
         "native_vioso_sps_compatible": False,
         "projector_size": list(proj),
         "camera_size": list(camera),
+        "camera_mask_applied": camera_mask is not None,
+        "camera_roi_fraction": round(float(roi_pixels / (w * h)), 6),
         "pattern_pairs_checked": count,
         "contrast_margin": margin,
         "min_pair_reliable_fraction": round(min(per_pair), 6),
