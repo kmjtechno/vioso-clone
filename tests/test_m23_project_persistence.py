@@ -50,6 +50,26 @@ def test_atomic_replace_failure_preserves_original_and_cleans_owned_stage(monkey
     assert list(tmp_path.glob(".*.pending")) == []
 
 
+
+def test_fsync_failure_preserves_owner_bytes_and_removes_only_pending(monkeypatch, tmp_path):
+    """Interrupted disk flush must not commit a partial JSON project."""
+    path = tmp_path / "owner.json"
+    Project("owner").save(path)
+    original = path.read_bytes()
+    unrelated = tmp_path / ".unrelated.pending"
+    unrelated.write_bytes(b"DO_NOT_TOUCH")
+
+    def no_flush(_fd):
+        raise OSError("simulated disk flush failure")
+
+    monkeypatch.setattr(project.os, "fsync", no_flush)
+    with pytest.raises(OSError, match="disk flush"):
+        Project("replacement").save(path)
+    assert path.read_bytes() == original
+    assert unrelated.read_bytes() == b"DO_NOT_TOUCH"
+    assert [p for p in tmp_path.glob(".*.pending") if p != unrelated] == []
+
+
 def test_load_refuses_oversized_input(tmp_path):
     path = tmp_path / "huge.json"
     with path.open("wb") as f:
