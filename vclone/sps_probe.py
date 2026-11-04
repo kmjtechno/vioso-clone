@@ -122,7 +122,7 @@ def _read_metadata_header(fd: int, size: int) -> bytes:
             break
     if not header.endswith(closing):
         raise ValueError("missing .sps XML closing tag within header limit")
-    offset_match = re.search(rb'\\bbinOffset="([0-9]{20})"', header)
+    offset_match = re.search(rb'\bbinOffset="([0-9]{20})"', header)
     if offset_match is None:
         raise ValueError("invalid .sps binOffset width")
     offset = int(offset_match.group(1))
@@ -130,7 +130,7 @@ def _read_metadata_header(fd: int, size: int) -> bytes:
         raise ValueError("invalid .sps XML header boundary")
     while len(header) < offset:
         chunk = os.read(fd, 1)
-        if chunk not in (b" ", b"\\t", b"\\n", b"\\r"):
+        if chunk not in (b" ", b"\t", b"\n", b"\r"):
             raise ValueError("unexpected bytes after .sps XML closing tag")
         header.extend(chunk)
     return bytes(header)
