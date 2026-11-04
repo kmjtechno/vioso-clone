@@ -144,10 +144,26 @@ def render_frame(project: Project, content_path) -> np.ndarray:
 
 
 def render_preview(project: Project, content_path, out_path) -> None:
-    """Write a CPU-calibrated projector frame to a PNG; does not show a window."""
+    """Export a new CPU-calibrated PNG exclusively, never overwriting owner data.
+
+    Mirrors the GUI's safe preview export. Does not open a display or mutate
+    the clone project. An unexpected write failure may leave the newly
+    created file incomplete, but cannot truncate an existing destination.
+    """
+    target = Path(out_path)
+    if (target.suffix.lower() != ".png" or target.exists()
+            or target.is_symlink() or not target.parent.is_dir()
+            or target.parent.is_symlink()):
+        raise ValueError("preview destination must be a new .png in an existing regular directory")
     frame = render_frame(project, content_path)
-    if not cv2.imwrite(str(out_path), frame):
-        raise MissingInput(f"cannot write preview: {out_path}")
+    if not isinstance(frame, np.ndarray) or frame.dtype != np.uint8 or frame.ndim != 3 or frame.shape[2] != 3:
+        raise ValueError("preview must render a uint8 BGR image")
+    ok, payload = cv2.imencode(".png", frame)
+    if not ok:
+        raise MissingInput("cannot encode calibrated preview PNG")
+    # Exclusive-create provides the final no-overwrite guarantee after checks.
+    with target.open("xb") as destination:
+        destination.write(payload.tobytes())
 
 
 def _design(project: Project) -> None:
