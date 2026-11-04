@@ -14,7 +14,7 @@ import stat
 import cv2
 import numpy as np
 
-from . import calib, render
+from . import calib, render, color_balance
 from .project import Project
 
 MAX_PROJECTORS = 8
@@ -70,7 +70,7 @@ def _validated_mesh(project, content_size):
     return mesh, tuple(size)
 
 
-def export_multi(projects, content_path, output_dir, *, gamma=2.2):
+def export_multi(projects, content_path, output_dir, *, gamma=2.2, color_balance_profiles=None):
     """Render 2..8 calibrated outputs with shared content-space overlap weights.
 
     The output folder must be new. Partial output on error has no manifest.
@@ -80,6 +80,8 @@ def export_multi(projects, content_path, output_dir, *, gamma=2.2):
         raise MultiExportError("provide between 2 and 8 calibrated projects")
     if type(gamma) not in (float, int) or not isfinite(gamma) or not 0.5 <= gamma <= 4.0:
         raise MultiExportError("blend gamma must be finite and between 0.5 and 4.0")
+    profiles = (None if color_balance_profiles is None else
+                color_balance.validate_profiles(color_balance_profiles, len(projects)))
     image = _validated_source(content_path)
     content_size = (image.shape[1], image.shape[0])
     prepared = [_validated_mesh(p, content_size) for p in projects]
@@ -124,6 +126,8 @@ def export_multi(projects, content_path, output_dir, *, gamma=2.2):
     for i, (project, (mesh, size), alpha, mask) in enumerate(
             zip(projects, prepared, alphas, masks), start=1):
         frame = render.render_projector(image, mesh, size, alpha=alpha)
+        if profiles is not None:
+            frame = color_balance.apply_preview(frame, profiles[i - 1])
         filename = f"projector_{i:02d}.png"
         path = output / filename
         if not cv2.imwrite(str(path), frame):
@@ -147,6 +151,12 @@ def export_multi(projects, content_path, output_dir, *, gamma=2.2):
         "overlap_fraction": round(float(np.mean(covered_count > 1)), 6),
         "uncovered_fraction": round(float(np.mean(~covered)), 6),
     }
+    if profiles is not None:
+        result["color_balance_preview"] = {
+            "schema": color_balance.SCHEMA,
+            "profiles": profiles,
+            "hardware_photometric_acceptance": "NOT_VERIFIED",
+        }
     (output / "manifest.json").write_text(
         json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return result
