@@ -41,9 +41,9 @@ def _frames(count=8, *, offset=70, size=(64, 64)):
     x = np.arange(w, dtype=np.uint8)[None, :]
     y = np.arange(h, dtype=np.uint8)[:, None]
     return [np.stack([
-        np.broadcast_to((x + offset + i) % 255, (h, w)),
-        np.broadcast_to((y + offset + i) % 255, (h, w)),
-        np.broadcast_to(((x // 2 + y // 2 + offset + i) % 255), (h, w)),
+        np.broadcast_to((x + offset + i * 4) % 255, (h, w)),
+        np.broadcast_to((y + offset + i * 4) % 255, (h, w)),
+        np.broadcast_to(((x // 2 + y // 2 + offset + i * 4) % 255), (h, w)),
     ], axis=2).astype(np.uint8) for i in range(count)]
 
 
