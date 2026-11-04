@@ -1,0 +1,63 @@
+# VIOSO-Clone (vclone)
+
+An independently implemented Python/OpenCV projector-calibration application under active development. The goal is functional VIOSO-like projection calibration without copying vendor code, assets, licensing, or protected formats.
+
+This repository is source code, not a finished replacement for VIOSO 7. Synthetic calibration and software-rendered previews are tested. Native .sps interoperability, real-time multi-projector output and physical hardware acceptance remain **NOT VERIFIED**.
+
+## Current features
+
+| Module | Current status |
+| --- | --- |
+| Gray-code generation/decoding and projector-to-camera mapping | Implemented; synthetic tests |
+| Camera intrinsics and quality gates | Implemented with OpenCV |
+| Homography, multipane RANSAC and warp mesh | Implemented; synthetic tests |
+| Edge blending and CPU frame warp preview | Implemented; no dedicated GPU swap-chain |
+| Project JSON, design/calibration/edit/export CLI | Implemented |
+| Clone-specific .sps container (M5/M6) | Implemented with bounded parser; **NOT native VIOSO compatible** |
+| Read-only .sps XML metadata inspector (M7) | Implemented; explicitly no payload/native compatibility claim |
+| Experimental projector Gray-code / camera capture (M8) | Implemented, opt-in; **physical hardware not yet verified** |
+| Minimal PySide6 GUI | Implemented; not full commercial UI |
+| Player, remote and automation script modules | Implemented at software level; no real NDI/real-time output |
+| Original VIOSO 7 formats, proprietary render API, hardware parity | **Not implemented / not verified** |
+
+## Quick start
+
+Use a Python environment with OpenCV and NumPy. PySide6 is optional for the GUI; install the GUI-capable OpenCV build for an actual projector window.
+
+    python -m pip install numpy opencv-python pytest PySide6
+    python -m pytest -q
+    python examples/synthetic_demo.py
+    python -m vclone gui
+
+The synthetic demo writes pNN/nNN camera images, a clone-format JSON project, warp.json, content.png and preview.png into a newly created temporary folder. It never uses a real camera or projector. The demo refuses an output folder containing existing files.
+
+## Experimental real camera acquisition
+
+Only use with an explicitly identified external projector display and camera:
+
+    python -m vclone capture-graycode --width 1280 --height 800 --camera 0 --projector-x 1920 --projector-y 0 --out "E:/KMJ/Captures/run-001" --confirm-display
+
+The destination must not exist. The displayed coordinates are examples and must be confirmed by the operator; the camera window will not open without the confirmation flag. Camera timing/contrast and projector suitability need real tests. See docs/M8_CAMERA_CAPTURE.md for the manual project configuration and calibration pipeline.
+
+## Calibration CLI
+
+Use the clone's own project.json with measured corner points and scan folder:
+
+    python -m vclone /L:project.json /Q:Calibrate
+    python -m vclone /L:project.json /Q:Export
+    python -m vclone preview project.json content.png preview.png
+
+Do not treat a successful preview as hardware calibration proof. Design, editing, remote and player features have narrower verified scope than a full proprietary software product.
+
+## Project structure
+
+- vclone/calib.py, intrinsics.py, render.py: calibration algorithms and CPU software output
+- vclone/project.py, cmdline.py, gui.py, gui_model.py: project workflow, command line and minimal GUI
+- vclone/sps.py and sps_probe.py: clone SPS and read-only bounded metadata inspection
+- vclone/capture.py: opt-in camera/projector acquisition
+- vclone/script.py, remote.py, player.py: software workflow components
+- examples/synthetic_demo.py: runnable end-to-end synthetic calibration
+- tests/: Python regression suites; hosted Windows/Linux CI tests synthetic workflows, not physical hardware
+- SPEC.md and docs/: clean-room specification, limitations and evidence
+
+No source from SPCalibrator64.exe, SPeASY64.dll, license/protector DLLs or third-party protected software is included.
