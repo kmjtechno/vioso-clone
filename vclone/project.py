@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -27,12 +29,54 @@ class Project:
     result: dict = field(default_factory=dict)  # mesh (content space, null = unobserved), coverage
 
     def save(self, path) -> None:
-        Path(path).write_text(json.dumps(asdict(self), indent=2), encoding="utf-8")
+        """Atomic same-directory JSON save: never truncate an existing owner file."""
+        target = Path(path)
+        if (target.is_symlink() or (target.exists() and not target.is_file())
+                or not target.parent.is_dir() or target.parent.is_symlink()):
+            raise ValueError("project target must be a regular path in an existing directory")
+        # Serialise first, before opening files: an invalid project must leave files untouched.
+        payload = (json.dumps(asdict(self), indent=2, allow_nan=False) + "\n").encode("utf-8")
+        if len(payload) > 32 * 1024 * 1024:
+            raise ValueError("project JSON exceeds 32 MiB limit")
+        fd, pending = tempfile.mkstemp(prefix=f".{target.name}.", suffix=".pending",
+                                       dir=str(target.parent))
+        try:
+            with os.fdopen(fd, "wb") as stream:
+                stream.write(payload)
+                stream.flush()
+                os.fsync(stream.fileno())
+            # Re-check under the same-directory atomic replace; never follow target symlinks.
+            if target.is_symlink() or (target.exists() and not target.is_file()):
+                raise ValueError("project target changed during save")
+            os.replace(pending, target)
+        finally:
+            if os.path.exists(pending):
+                os.unlink(pending)
 
     @classmethod
     def load(cls, path) -> "Project":
-        d = json.loads(Path(path).read_text(encoding="utf-8"))
+        """Load clone JSON only; reject symlinks, oversized or nonstandard JSON."""
+        source = Path(path)
+        if source.is_symlink() or not source.is_file():
+            raise ValueError("project source must be a regular non-symlink file")
+        if not 0 < source.stat().st_size <= 32 * 1024 * 1024:
+            raise ValueError("project JSON must be 1..32 MiB")
+
+        def reject_constant(value):
+            raise ValueError(f"invalid non-finite JSON constant: {value}")
+
+        d = json.loads(source.read_text(encoding="utf-8"), parse_constant=reject_constant)
+        if not isinstance(d, dict):
+            raise ValueError("project JSON root must be an object")
+        if (not isinstance(d.get("name", "untitled"), str)
+                or not isinstance(d.get("scan", {}), dict)
+                or not isinstance(d.get("result", {}), dict)
+                or not isinstance(d.get("steps_done", []), list)
+                or not isinstance(d.get("displays", []), list)):
+            raise ValueError("project JSON has invalid top-level field types")
         cam = d.get("camera")
+        if cam is not None and not isinstance(cam, dict):
+            raise ValueError("project camera must be an object or null")
         return cls(d.get("name", "untitled"), CameraIntrinsics(**cam) if cam else None,
                    d.get("content_space", ""), d.get("displays", []), d.get("steps_done", []),
                    d.get("scan", {}), d.get("result", {}))
