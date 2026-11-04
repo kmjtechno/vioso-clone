@@ -50,7 +50,7 @@ class Decoded:
     valid: np.ndarray
 
 
-def decode_graycode(captures, inverses, proj_size, margin: int = 20) -> Decoded:
+def decode_graycode(captures, inverses, proj_size, margin: int = 20, camera_mask=None) -> Decoded:
     """captures/inverses: camera images (gray or BGR) for each pattern/inverse in graycode order."""
     w, h = _check_pair(proj_size, "proj_size")
     if isinstance(margin, bool) or not isinstance(margin, (int, float)) or not np.isfinite(margin) or margin < 0:
@@ -63,6 +63,11 @@ def decode_graycode(captures, inverses, proj_size, margin: int = 20) -> Decoded:
     if any(gray(im).shape != shape for im in list(captures) + list(inverses)):
         raise ValueError("all captures and inverses must have the same shape")
     valid = np.ones(shape, bool)
+    if camera_mask is not None:
+        roi = np.asarray(camera_mask)
+        if roi.shape != shape or roi.dtype != np.bool_ or not roi.any():
+            raise ValueError("camera mask must be a matching nonempty boolean camera ROI")
+        valid &= roi
     bits = []
     for c, i in zip(captures, inverses):
         d = gray(c).astype(np.int16) - gray(i).astype(np.int16)
