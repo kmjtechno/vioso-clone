@@ -26,6 +26,15 @@ administrator command allowlist.
    moves, execution stops without creating the target. It performs a
    shallow, no-checkout Git clone only into a **previously nonexistent** sibling
    folder `vioso-clone-isolated-<first12sha>`.
+   The repository may be private: an already-authorized Git Credential Manager
+   session can supply credentials noninteractively. On a trusted, private
+   GitHub Actions job, the step instead provides a narrowly scoped, temporary
+   `M41_GITHUB_READ_TOKEN` environment variable. The script derives a Git
+   HTTP authorization header **in memory only** for the main-SHA lookup and
+   no-checkout clone, then unsets it **before** checkout, Python dependencies
+   or any test code runs. No token may be passed through command arguments,
+   embedded in the URL, written to Git config or copied to output. A missing
+   credential must fail safely; do not weaken Git authentication.
 4. The new clone checks out a detached SHA with Git hooks disabled, verifies
    exact HEAD and clean status, creates only its own `.venv`, and installs
    Python `[gui,test]` dependencies into that environment. It runs the
