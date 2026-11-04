@@ -27,11 +27,18 @@ def test_portable_version_does_not_import_qt_or_connect_hardware(capsys, monkeyp
     ["--version", "unexpected"], ["--help"], ["--execute"],
 ])
 def test_unknown_arguments_fail_closed_without_hardware(params, monkeypatch):
-    from vclone import gui
+    # This security gate must pass on CLI-only platforms without PySide6.
+    # No invalid argument is permitted to import/open the GUI at all.
+    import builtins
 
-    monkeypatch.setattr(gui, "main",
-                        lambda *_a: (_ for _ in ()).throw(
-                            AssertionError("unapproved arguments launched GUI")))
+    original_import = builtins.__import__
+
+    def deny_gui(name, *args, **kwargs):
+        if name in ("vclone.gui", "PySide6.QtWidgets") or name == "gui":
+            raise AssertionError("invalid argument attempted GUI import")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", deny_gui)
     assert portable_entry.portable_main(params) == 2
 
 
@@ -55,6 +62,7 @@ def test_portable_gui_self_test_is_offscreen_and_has_four_safety_actions(monkeyp
 
 
 def test_portable_gui_launch_dispatch_is_explicit(monkeypatch):
+    pytest.importorskip("PySide6")
     import vclone.gui as gui
 
     seen = []
