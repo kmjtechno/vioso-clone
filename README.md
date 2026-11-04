@@ -79,6 +79,20 @@ A clone JSON project with valid calibration can render a corrected still frame o
 
 This uses OpenCV fullscreen for a single still frame, not a synchronized video renderer or DirectX backend. The sample X=1920/Y=0 coordinates are **not autodetected**. See docs/M9_PROJECTOR_STILL_OUTPUT.md.
 
+## Capture actual Gray-code patterns from the GUI (M21)
+
+Use Calibration > Capture Gray-code from camera in the PySide6 GUI. Choose a NEW
+capture folder, projector resolution, content size, camera index and actual
+extended-display X/Y coordinates. The OK action stays disabled until the local
+operator confirms the display choice. ESC aborts acquisition. If a capture
+fails, no completed manifest is reported and the existing project settings are
+not changed. After a successful capture, the session connects the new folder,
+then use Calibration > Select camera corners and run Calibrate.
+
+The GUI capture path is still experimental: physical hardware alignment,
+latency and optical acceptance must be tested on the actual P520/projector.
+No original VIOSO code or native settings file is used.
+
 ## Select camera corners in the GUI
 
 Run `python -m vclone gui`, choose **Calibration → Setup capture folder and dimensions**, then **Calibration → Select camera corners**. Click the four corners in the p00.png camera image in TL → TR → BR → BL order. The editor validates convex geometry, sets matching content corners and invalidates stale calibration. Save the clone-format project through File → Save As before running Calibrate. See docs/M10_CAMERA_CORNER_EDITOR.md. The GUI does not automatically certify real hardware alignment.
