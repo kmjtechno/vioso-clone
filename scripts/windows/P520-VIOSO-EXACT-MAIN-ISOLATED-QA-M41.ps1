@@ -62,27 +62,54 @@ if ($null -ne $PyLauncher) {
     $PythonExeForVenv = (Get-Command python -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
     $PythonArgs = @()
 }
-# Disable prompting and use only the fixed, public, exact repository URL.
+# Disable prompting and use only the fixed, owner-controlled repository URL.
 $env:GIT_TERMINAL_PROMPT = '0'
-$RemoteLines = @(& $GitExe ls-remote --heads $RepoUrl main)
-Assert-NativeSuccess 'REMOTE_MAIN_LOOKUP'
-if ($RemoteLines.Count -ne 1) {
-    throw 'M41_REMOTE_MAIN_RESPONSE_REFUSED'
-}
-$RemoteMatch = [regex]::Match([string]$RemoteLines[0], '^([0-9a-fA-F]{40})\s+refs/heads/main$')
-if (-not $RemoteMatch.Success) {
-    throw 'M41_REMOTE_MAIN_RESPONSE_REFUSED'
-}
-$ObservedSha = $RemoteMatch.Groups[1].Value.ToLowerInvariant()
-if ($ObservedSha -cne $Sha) {
-    throw 'M41_REMOTE_MAIN_SHA_CHANGED_REFUSE_STALE_INSTALL'
-}
-Write-Output 'M41_REMOTE_MAIN_SHA=EXACT_MATCH'
 
-# A fresh, absent sibling only. No reset, clean, pull or checkout of owner files.
-# Disable hooks during clone and checkout. Keep incomplete target for inspection.
-& $GitExe -c core.hooksPath=NUL clone --no-checkout --single-branch --depth 1 --branch main -- $RepoUrl $Target
-Assert-NativeSuccess 'FRESH_CLONE'
+# GitHub Actions or the owner may supply an already-authorized read-only token
+# through this process's environment. No token ever appears in argv, URLs,
+# outputs, on-disk Git config, or the isolated source tree.
+$HasEphemeralToken = -not [string]::IsNullOrWhiteSpace($env:M41_GITHUB_READ_TOKEN)
+if ($HasEphemeralToken) {
+    if (Test-Path Env:\GIT_CONFIG_COUNT) {
+        throw 'M41_GIT_CONFIG_ENV_ALREADY_PRESENT_REFUSE_OVERRIDE'
+    }
+    $Auth = 'x-access-token:' + $env:M41_GITHUB_READ_TOKEN
+    $Encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Auth))
+    $env:GIT_CONFIG_COUNT = '1'
+    $env:GIT_CONFIG_KEY_0 = 'http.https://github.com/.extraheader'
+    $env:GIT_CONFIG_VALUE_0 = 'AUTHORIZATION: basic ' + $Encoded
+    $Auth = $null
+    $Encoded = $null
+}
+try {
+    $RemoteLines = @(& $GitExe ls-remote --heads $RepoUrl main)
+    Assert-NativeSuccess 'REMOTE_MAIN_LOOKUP'
+    if ($RemoteLines.Count -ne 1) {
+        throw 'M41_REMOTE_MAIN_RESPONSE_REFUSED'
+    }
+    $RemoteMatch = [regex]::Match([string]$RemoteLines[0], '^([0-9a-fA-F]{40})\s+refs/heads/main$')
+    if (-not $RemoteMatch.Success) {
+        throw 'M41_REMOTE_MAIN_RESPONSE_REFUSED'
+    }
+    $ObservedSha = $RemoteMatch.Groups[1].Value.ToLowerInvariant()
+    if ($ObservedSha -cne $Sha) {
+        throw 'M41_REMOTE_MAIN_SHA_CHANGED_REFUSE_STALE_INSTALL'
+    }
+    Write-Output 'M41_REMOTE_MAIN_SHA=EXACT_MATCH'
+
+    # Fresh, absent sibling only: no reset, clean, pull or checkout of owner files.
+    # The clone does not populate its worktree until AFTER auth is cleared.
+    & $GitExe -c core.hooksPath=NUL clone --no-checkout --single-branch --depth 1 --branch main -- $RepoUrl $Target
+    Assert-NativeSuccess 'FRESH_CLONE'
+} finally {
+    if ($HasEphemeralToken) {
+        # Never pass a repo access token to checkout filters, Python/pip, or tests.
+        Remove-Item Env:\GIT_CONFIG_VALUE_0 -ErrorAction SilentlyContinue
+        Remove-Item Env:\GIT_CONFIG_KEY_0 -ErrorAction SilentlyContinue
+        Remove-Item Env:\GIT_CONFIG_COUNT -ErrorAction SilentlyContinue
+        Remove-Item Env:\M41_GITHUB_READ_TOKEN -ErrorAction SilentlyContinue
+    }
+}
 & $GitExe -C $Target -c core.hooksPath=NUL checkout --detach $Sha
 Assert-NativeSuccess 'DETACHED_CHECKOUT'
 $ActualSha = ((& $GitExe -C $Target rev-parse HEAD) -join '').Trim().ToLowerInvariant()
