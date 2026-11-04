@@ -32,7 +32,10 @@ def _png_name(name):
 
 
 def _image(folder, name, size):
-    return _read_png(folder / _png_name(name), size)
+    try:
+        return _read_png(folder / _png_name(name), size)
+    except (ValueError, OSError) as exc:
+        raise BlackLevelError("invalid or unsafe grayscale camera PNG") from exc
 
 
 def analyze_black_frames(manifest_path):
