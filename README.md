@@ -73,6 +73,16 @@ opening a camera/projector or writing files. See
 This is software screening only, not optical calibration certification or
 native VIOSO 7 compatibility.
 
+## Camera-only live-frame preflight (M36)
+
+With projectors still **OFF**, the locally approved operator can use
+`vclone camera-frame-probe <private-camera.json> --confirm-camera` to read
+4–16 bounded frames from one explicitly selected USB/RTSP camera. It
+reports resolution, brightness, clipping, texture and frame changes without
+saving camera data, revealing network credentials or starting any projector.
+There is no default automatic device probe, and a report is **not** optical
+alignment certification. See [M36 camera-only safety guide](docs/M36_CAMERA_ONLY_FRAME_PREFLIGHT.md).
+
 ## Fisheye rectified optical calibration (M35)
 
 Raw, owner-calibrated fisheye Gray-code frames can now be remapped into a
