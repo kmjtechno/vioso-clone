@@ -122,10 +122,19 @@ def _read_metadata_header(fd: int, size: int) -> bytes:
             break
     if not header.endswith(closing):
         raise ValueError("missing .sps XML closing tag within header limit")
-    offset_match = re.search(rb'\bbinOffset="([0-9]{20})"', header)
-    if offset_match is None:
+    if b"<!DOCTYPE" in header.upper() or b"<!ENTITY" in header.upper():
+        raise ValueError("XML DTD/entities are not accepted")
+    try:
+        root = ET.fromstring(bytes(header))
+    except (ET.ParseError, LookupError):
+        raise ValueError("invalid .sps XML header") from None
+    data_nodes = root.findall("data")
+    if root.tag != "VIOSO" or len(data_nodes) != 1:
+        raise ValueError("unsupported .sps XML header shape")
+    text_offset = data_nodes[0].get("binOffset")
+    if text_offset is None or re.fullmatch(r"[0-9]{20}", text_offset) is None:
         raise ValueError("invalid .sps binOffset width")
-    offset = int(offset_match.group(1))
+    offset = int(text_offset)
     if offset < len(header) or offset > limit:
         raise ValueError("invalid .sps XML header boundary")
     while len(header) < offset:
