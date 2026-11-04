@@ -91,10 +91,14 @@ def calibrate_observations(image_points, size, *, cols=9, rows=6,
     D = np.zeros((4, 1), np.float64)
     # The two highest-order coefficients are fixed to reduce overfitting on
     # moderate-FOV observations; do not extrapolate this into 180° parity.
-    flags = (cv2.fisheye.CALIB_RECOMPUTE_EXTRINSIC |
-             cv2.fisheye.CALIB_FIX_SKEW |
-             cv2.fisheye.CALIB_FIX_K3 |
-             cv2.fisheye.CALIB_FIX_K4)
+    # OpenCV 5.x no longer exposes some module constants even though the
+    # fisheye C++ enum flag integers remain stable (2, 8, 64, 128).
+    # Resolve named values when exposed, otherwise use their published enum
+    # values. This also lets CI check OpenCV 4.x and 5.x safely.
+    flags = (getattr(cv2.fisheye, "CALIB_RECOMPUTE_EXTRINSIC", 2) |
+             getattr(cv2.fisheye, "CALIB_FIX_SKEW", 8) |
+             getattr(cv2.fisheye, "CALIB_FIX_K3", 64) |
+             getattr(cv2.fisheye, "CALIB_FIX_K4", 128))
     try:
         rms, fitted, distortion, rotations, translations = cv2.fisheye.calibrate(
             objects, points, (width, height), K, D, flags=flags,
