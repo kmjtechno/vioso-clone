@@ -31,7 +31,7 @@ def read_camera_mask(path, shape) -> np.ndarray:
     if (not isinstance(shape, (tuple, list)) or len(shape) != 2
             or any(type(v) not in (int, np.int32, np.int64) or not 2 <= v <= 4096
                    for v in shape)
-            or shape[0] > 2160 or shape[0] * shape[1] > MAX_CAMERA_PIXELS):
+            or shape[0] > 4096 or shape[0] * shape[1] > MAX_CAMERA_PIXELS):
         raise CameraMaskError("camera ROI requires bounded camera frame shape")
     height, width = int(shape[0]), int(shape[1])
     source = Path(path)
