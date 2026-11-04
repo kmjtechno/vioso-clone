@@ -73,6 +73,14 @@ opening a camera/projector or writing files. See
 This is software screening only, not optical calibration certification or
 native VIOSO 7 compatibility.
 
+## Read-only black-level frame diagnostic (M31)
+
+`vclone blacklevel-check <owner-measured-session.json>` analyzes independent
+camera grayscale black frames and per-projector coverage regions. Reports
+overlap/nonoverlap encoded dark-level differences without hardware access or
+writing files. It is **not** an actual measured black-level uplift correction.
+See [M31 optical blacklevel protocol](docs/M31_BLACKLEVEL_ANALYSIS.md).
+
 ## Initial 3D camera pose from measured markers (M30)
 
 Use `vclone estimate-camera-pose <measured-markers.json>` to compute a
