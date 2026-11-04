@@ -99,6 +99,16 @@ def main(argv=None):
     video.add_argument("--fps", type=float, default=24.0, help="bounded playback pacing 1..30")
     video.add_argument("--seconds", type=float, default=10.0, help="bounded duration 0..30")
     video.add_argument("--confirm-display", action="store_true", help="operator confirms destination projector")
+    seam = sub.add_parser("two-projector-check",
+                          help="read-only overlap and uncovered-area check for exactly two calibrated projects")
+    seam.add_argument("project_left", help="first calibrated clone JSON project")
+    seam.add_argument("project_right", help="second calibrated clone JSON project")
+    seam.add_argument("--min-overlap", type=float, default=0.05,
+                      help="required overlap fraction of smaller projector footprint")
+    seam.add_argument("--max-overlap", type=float, default=0.85,
+                      help="reject nearly duplicate projector footprints")
+    seam.add_argument("--min-union-coverage", type=float, default=0.50,
+                      help="minimum two-projector content coverage")
     multi = sub.add_parser("export-multi", help="offline warp/blend PNG outputs for 2-8 calibrated projectors")
     multi.add_argument("content", help="shared content image")
     multi.add_argument("output_dir", help="new output folder, never overwrite")
@@ -160,6 +170,24 @@ def main(argv=None):
         print(f"displayed {receipt.displays_presented} previews; "
               f"hardware_acceptance={receipt.hardware_acceptance}")
         return 0
+    if a.cmd == "two-projector-check":
+        import json
+        from .two_projector_check import TwoProjectorError, check_two_projectors
+        try:
+            if Path(a.project_left).resolve() == Path(a.project_right).resolve():
+                raise TwoProjectorError("two separate projector projects are required")
+            projects = [project.Project.load(p) for p in
+                        (a.project_left, a.project_right)]
+            report = check_two_projectors(
+                projects, min_overlap=a.min_overlap,
+                max_overlap=a.max_overlap,
+                min_union_coverage=a.min_union_coverage)
+        except (TwoProjectorError, ValueError, KeyError, TypeError,
+                OverflowError, OSError) as exc:
+            print(f"two-projector check refused: {exc}", file=sys.stderr)
+            return 2
+        print(json.dumps(report, sort_keys=True))
+        return 0 if report["software_seam_gate"] == "PASS_SOFTWARE_GEOMETRY_ONLY" else 2
     if a.cmd == "export-multi":
         from . import multi_output
         from .color_balance import load_profile
