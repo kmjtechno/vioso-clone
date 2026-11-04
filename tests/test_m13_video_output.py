@@ -195,3 +195,40 @@ def test_cli_uses_calibrated_project_and_mock_output(tmp_path, monkeypatch):
     assert len(observed) == 1
     assert observed[0][0].name == "calibrated"
     assert observed[0][2]["fps"] == 12
+
+
+def test_frame_budget_never_decodes_extra_frame():
+    read_count = []
+    def counted():
+        for index in range(100):
+            read_count.append(index)
+            yield np.full((24, 40, 3), 75, np.uint8)
+    receipt = video.warp_frames(calibrated_project(), counted(),
+                                lambda _: None, lambda _: -1,
+                                fps=3, seconds=2, clock=lambda: 0)
+    assert receipt.frames_presented == 6
+    assert len(read_count) == 6
+
+
+def test_real_video_codec_read_with_fake_projector(tmp_path, monkeypatch):
+    """Actual OpenCV MJPEG encode/decode, but no projector hardware."""
+    source = tmp_path / "local.avi"
+    writer = cv2.VideoWriter(str(source), cv2.VideoWriter_fourcc(*"MJPG"), 5, (40, 24))
+    if not writer.isOpened():
+        writer.release()
+        pytest.skip("OpenCV bundled build lacks MJPEG writer")
+    for color in (40, 80, 120, 160):
+        writer.write(np.full((24, 40, 3), color, np.uint8))
+    writer.release()
+    assert source.exists() and source.stat().st_size > 0
+    names = []
+    monkeypatch.setattr(video.cv2, "namedWindow", lambda *a: names.append("open"))
+    monkeypatch.setattr(video.cv2, "moveWindow", lambda *a: None)
+    monkeypatch.setattr(video.cv2, "setWindowProperty", lambda *a: None)
+    monkeypatch.setattr(video.cv2, "imshow", lambda _name, image: names.append("frame"))
+    monkeypatch.setattr(video.cv2, "waitKey", lambda *_: -1)
+    monkeypatch.setattr(video.cv2, "destroyWindow", lambda *a: names.append("close"))
+    receipt = video.play_file(calibrated_project(), source, confirmed=True,
+                              projector_x=1920, projector_y=0, fps=5, seconds=2)
+    assert receipt.frames_presented == 4
+    assert names == ["open", "frame", "frame", "frame", "frame", "close"]
