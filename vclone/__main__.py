@@ -54,7 +54,33 @@ def main(argv=None):
     multi.add_argument("output_dir", help="new output folder, never overwrite")
     multi.add_argument("projects", nargs="+", help="2..8 calibrated clone JSON project files")
     multi.add_argument("--gamma", type=float, default=2.2, help="blend gamma 0.5..4.0")
+    md = sub.add_parser("present-multi", help="show verified M14 PNGs on 2-8 selected desktops")
+    md.add_argument("directory", help="M14 offline export directory")
+    md.add_argument("--origin", action="append", required=True, help="x,y desktop coordinate (repeat per projector)")
+    md.add_argument("--duration-ms", type=int, default=5000)
+    md.add_argument("--confirm-display", action="store_true")
     a = ap.parse_args(argv)
+    if a.cmd == "present-multi":
+        if not a.confirm_display:
+            print("multi-display refused: --confirm-display required", file=sys.stderr)
+            return 2
+        from . import multi_present
+        try:
+            origins = []
+            for point in a.origin:
+                parts = point.split(",")
+                if len(parts) != 2:
+                    raise multi_present.MultiDisplayError("origins must be x,y coordinates")
+                origins.append((int(parts[0]), int(parts[1])))
+            receipt = multi_present.present_multi(
+                a.directory, origins, duration_ms=a.duration_ms, confirmed=True)
+        except (multi_present.MultiDisplayError, multi_present.cv2.error,
+                ValueError, TypeError, OSError) as e:
+            print(f"multi-display refused: {e}", file=sys.stderr)
+            return 2
+        print(f"displayed {receipt.displays_presented} previews; "
+              f"hardware_acceptance={receipt.hardware_acceptance}")
+        return 0
     if a.cmd == "export-multi":
         from . import multi_output
         try:
