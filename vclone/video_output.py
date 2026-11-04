@@ -104,8 +104,13 @@ def warp_frames(
     start = clock()
     count = 0
     escaped = False
-    for frame in frames:
-        if count >= limit:
+    iterator = iter(frames)
+    while count < limit:
+        if clock() - start > seconds:
+            break
+        try:
+            frame = next(iterator)
+        except StopIteration:
             break
         if (not isinstance(frame, np.ndarray) or frame.dtype != np.uint8
                 or frame.ndim != 3 or frame.shape[2] != 3
