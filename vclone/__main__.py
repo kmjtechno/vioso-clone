@@ -55,6 +55,12 @@ def main(argv=None):
                     help="opt-in previously measured M32 fisheye calibration JSON (raw frames only)")
     cq.add_argument("--fisheye-balance", type=float, default=0.25,
                     help="rectified pinhole crop/field-of-view balance 0..1")
+    fp = sub.add_parser("fisheye-rectify-preview",
+                        help="write a NEW rectified fisheye PNG from a recorded raw grayscale frame")
+    fp.add_argument("raw_png")
+    fp.add_argument("fisheye_profile")
+    fp.add_argument("new_output_png")
+    fp.add_argument("--balance", type=float, default=0.25, help="pinhole crop/FOV balance 0..1")
     fish = sub.add_parser("fisheye-calibrate",
                           help="offline fisheye checkerboard photos: no camera access or file writes")
     fish.add_argument("directory", help="folder of 12..48 existing raw checkerboard photos")
@@ -251,6 +257,20 @@ def main(argv=None):
             return 2
         print(f"saved {len(receipt.image_files)} image files to {a.out}")
         print(f"manifest: {Path(a.out) / 'capture_manifest.json'}")
+        return 0
+    if a.cmd == "fisheye-rectify-preview":
+        import json
+        from .fisheye_rectify import FisheyeRectifyError, export_rectified_preview
+        from .capture_check import CaptureCheckError
+        try:
+            report = export_rectified_preview(
+                a.raw_png, a.fisheye_profile, a.new_output_png,
+                balance=a.balance)
+        except (FisheyeRectifyError, CaptureCheckError,
+                ValueError, OSError, TypeError) as exc:
+            print(f"fisheye preview refused: {exc}", file=sys.stderr)
+            return 2
+        print(json.dumps({"preview_created": True, **report}, sort_keys=True))
         return 0
     if a.cmd == "fisheye-calibrate":
         import json
