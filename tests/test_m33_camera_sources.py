@@ -50,7 +50,10 @@ def test_cross_vendor_source_profile_validation(kind, source, backend):
     status = cs.profile_status(data)
     assert status["camera_connection"] == "NOT_TESTED"
     assert status["no_network_or_camera_access"] is True
-    assert source not in json.dumps(status)
+    # Neither numeric USB index nor private stream URI belongs in reports.
+    assert "source" not in status
+    if isinstance(source, str):
+        assert source not in json.dumps(status)
 
 
 @pytest.mark.parametrize("bad", [
