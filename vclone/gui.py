@@ -152,14 +152,14 @@ class MainWindow(QMainWindow):
             report = self.session.compare_projector_seam(path)
             gate = report["software_seam_gate"]
             details = (
-                f"Software gate: {gate}\\n"
+                f"Software gate: {gate}\n"
                 f"Overlap of smaller footprint: "
-                f"{100 * report['overlap_fraction_of_smaller_projector']:.1f}%\\n"
+                f"{100 * report['overlap_fraction_of_smaller_projector']:.1f}%\n"
                 f"Combined content coverage: "
-                f"{100 * report['union_coverage_fraction']:.1f}%\\n"
-                f"Uncovered content: {100 * report['uncovered_fraction']:.1f}%\\n\\n"
-                "Physical optical acceptance: NOT VERIFIED\\n"
-                "Projector identification and synchronization: NOT VERIFIED\\n"
+                f"{100 * report['union_coverage_fraction']:.1f}%\n"
+                f"Uncovered content: {100 * report['uncovered_fraction']:.1f}%\n\n"
+                "Physical optical acceptance: NOT VERIFIED\n"
+                "Projector identification and synchronization: NOT VERIFIED\n"
                 "No cameras or projectors were opened."
             )
             if gate == "PASS_SOFTWARE_GEOMETRY_ONLY":
