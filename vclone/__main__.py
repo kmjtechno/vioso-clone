@@ -27,7 +27,13 @@ def main(argv=None):
     cam.add_argument("--width", type=int, required=True, help="projector width (2..1920)")
     cam.add_argument("--height", type=int, required=True, help="projector height (2..1080)")
     cam.add_argument("--out", required=True, help="new directory; existing folders are never overwritten")
-    cam.add_argument("--camera", type=int, default=0, help="local OpenCV camera index")
+    source_group = cam.add_mutually_exclusive_group()
+    source_group.add_argument("--camera", type=int, default=0, help="local OpenCV camera index")
+    source_group.add_argument("--camera-profile", metavar="JSON",
+                              help="private USB/RTSP/IP/replay/SDK camera source profile")
+    source_check = sub.add_parser("camera-profile-check",
+                                   help="validate camera source JSON offline without network/device access")
+    source_check.add_argument("profile", help="existing private camera source JSON file")
     cam.add_argument("--projector-x", type=int, required=True, help="projector display's screen X")
     cam.add_argument("--projector-y", type=int, required=True, help="projector display's screen Y")
     cam.add_argument("--settle-ms", type=int, default=250, help="settling time per projected frame")
@@ -198,6 +204,15 @@ def main(argv=None):
             return 2
         print(json.dumps(report, sort_keys=True))
         return 0
+    if a.cmd == "camera-profile-check":
+        import json
+        from .camera_sources import CameraSourceError, read_profile, profile_status
+        try:
+            print(json.dumps(profile_status(read_profile(a.profile)), sort_keys=True))
+        except (CameraSourceError, ValueError, TypeError, OSError) as exc:
+            print(f"camera profile refused: {exc}", file=sys.stderr)
+            return 2
+        return 0
     if a.cmd == "capture-graycode":
         from . import capture
         try:
@@ -205,7 +220,8 @@ def main(argv=None):
                 a.width, a.height, a.out, camera_index=a.camera,
                 projector_x=a.projector_x, projector_y=a.projector_y,
                 settle_ms=a.settle_ms, warmup_frames=a.warmup_frames,
-                confirmed=a.confirm_display, projector_mask_path=a.projector_mask)
+                confirmed=a.confirm_display, projector_mask_path=a.projector_mask,
+                camera_profile_path=a.camera_profile)
         except (capture.CaptureError, capture.cv2.error, OSError, ValueError) as e:
             print(f"capture refused: {e}", file=sys.stderr)
             return 2
