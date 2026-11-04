@@ -88,6 +88,10 @@ def read_fisheye_profile(path):
                           parse_constant=lambda _v: (_ for _ in ()).throw(
                               FisheyeRectifyError("non-finite fisheye JSON")))
     except (ValueError, UnicodeError, OSError) as exc:
+        # Preserve deliberate safety refusals (size, symlink/JSON constants)
+        # instead of turning them into an ambiguous parser error.
+        if isinstance(exc, FisheyeRectifyError):
+            raise
         raise FisheyeRectifyError("fisheye profile JSON invalid") from exc
     validate_fisheye_profile(data)
     return data
