@@ -22,6 +22,7 @@ This repository is source code, not a finished replacement for VIOSO 7. Syntheti
 | Player, remote and automation script modules | Implemented at software level; no real NDI/real-time output |
 | Local calibrated video playback (M13) | Bounded single-projector CPU warp; no synchronized GPU/NDI/hardware acceptance |
 | Offline multi-projector blend/export (M14) | 2–8 calibrated PNG outputs with overlap weighting; no synchronized display |
+| Verified multi-display still presentation (M15) | Opt-in fullscreen windows for M14 PNGs; no hardware synchronization |
 | Original VIOSO 7 formats, proprietary render API, hardware parity | **Not implemented / not verified** |
 
 ## Install as a Python package (M12)
@@ -86,6 +87,14 @@ For 2–8 independently calibrated clone projects sharing one content resolution
 
 This writes a separate calibrated PNG for each projector and a hash-verified manifest in a **new** output directory, with content-space overlap blending. This is not simultaneous physical projector playback. See docs/M14_MULTI_PROJECTOR_OFFLINE.md.
 
+## Show verified multi-projector still previews
+
+After `export-multi` creates 2–8 PNG files and a checksum manifest, display them on distinct confirmed extended-desktop projectors:
+
+    vclone present-multi new-output-dir --origin 1920,0 --origin 3840,0 --duration-ms 5000 --confirm-display
+
+Each `--origin` is an example; operators must supply the actual display origin for each projector. The files are checked against manifest SHA-256 before windows are opened. This is **not** genlocked or synchronized video; see docs/M15_MULTI_DISPLAY_STILL.md.
+
 ## Calibration CLI
 
 Use the clone's own project.json with measured corner points and scan folder:
@@ -105,6 +114,7 @@ Do not treat a successful preview as hardware calibration proof. Design, editing
 - vclone/output.py: opt-in bounded still-frame projector output
 - vclone/video_output.py: bounded opt-in local video decoding and CPU-warped fullscreen output
 - vclone/multi_output.py: offline multi-projector warp and normalized content-space overlap export
+- vclone/multi_present.py: verified bounded multi-display still presentation
 - vclone/script.py, remote.py, player.py: software workflow components
 - examples/synthetic_demo.py: runnable end-to-end synthetic calibration
 - tests/: Python regression suites; hosted Windows/Linux CI tests synthetic workflows, not physical hardware
