@@ -59,7 +59,35 @@ def main(argv=None):
     md.add_argument("--origin", action="append", required=True, help="x,y desktop coordinate (repeat per projector)")
     md.add_argument("--duration-ms", type=int, default=5000)
     md.add_argument("--confirm-display", action="store_true")
+    nset = sub.add_parser("settings-new", help="create a NEW clone-only settings XML, not a native .sps")
+    nset.add_argument("out", help="new output path, existing paths never overwritten")
+    nset.add_argument("--name", default="untitled")
+    cset = sub.add_parser("settings-check", help="read-only validation of a clone-only settings XML")
+    cset.add_argument("file")
     a = ap.parse_args(argv)
+    if a.cmd in ("settings-new", "settings-check"):
+        from . import projectxml
+        try:
+            if a.cmd == "settings-new":
+                if not 0 < len(a.name) <= 256 or any(ord(c) < 32 for c in a.name):
+                    raise ValueError("name must be 1..256 printable characters")
+                dest = Path(a.out)
+                payload = projectxml.to_xml(projectxml.ProjectSettings(name=a.name)) + "\n"
+                with dest.open("x", encoding="utf-8", newline="\n") as out:
+                    out.write(payload)
+                print("clone_settings=CREATED; native_vioso_sps_compatible=NO")
+            else:
+                inp = Path(a.file)
+                if inp.is_symlink() or not inp.is_file():
+                    raise ValueError("settings XML must be a regular non-symlink file")
+                if inp.stat().st_size > projectxml.MAX_XML_BYTES:
+                    raise ValueError("project XML exceeds 1 MiB input limit")
+                settings = projectxml.from_xml(inp.read_text(encoding="utf-8"))
+                print(f"clone_settings=VALID; screen_type={settings.screen.type}; native_vioso_sps_compatible=NO")
+        except (ValueError, OSError) as err:
+            print(f"clone settings refused: {err}", file=sys.stderr)
+            return 2
+        return 0
     if a.cmd == "present-multi":
         if not a.confirm_display:
             print("multi-display refused: --confirm-display required", file=sys.stderr)

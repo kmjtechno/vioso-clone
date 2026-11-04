@@ -40,6 +40,18 @@ To create a redistributable wheel from the checked-out source:
 
 The wheel installs `vclone` and its independent Python code. This is **not a signed Windows .exe, commercial installer, calibrated hardware release, or native VIOSO file compatibility**. Hardware operations always require local user authorization and their explicit confirmation flags.
 
+## Clone project settings XML (M20)
+
+This is a **clone-specific** settings format and is **NOT** a native VIOSO 7 .sps format.
+
+    vclone settings-new room-settings.xml --name "Room A"
+    vclone settings-check room-settings.xml
+
+The create command uses exclusive creation and never overwrites an existing file.
+The check command only reads regular non-symlink files, checks an input size limit
+and rejects malformed XML, DTDs, unknown fields and unexpected attributes.
+Neither command uses a camera, projector, vendor licensing or original VIOSO files.
+
 ## Quick start
 
 Use a Python environment with OpenCV and NumPy. PySide6 is optional for the GUI; install the GUI-capable OpenCV build for an actual projector window.
