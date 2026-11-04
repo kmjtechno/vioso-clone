@@ -1,7 +1,7 @@
-name: M12 Installable Python Wheel
+name: M16 Versioned Alpha Wheel Release
 on:
   push:
-    branches: [feat/m12-installable-wheel-20261104]
+    branches: [release/vclone-alpha-20261104]
   pull_request:
     branches: [main]
 permissions:
@@ -32,14 +32,14 @@ jobs:
       - name: Publish short-lived alpha wheel artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kmj-vioso-clone-alpha-wheel
+          name: kmj-vioso-clone-0.2.0a1-wheel
           path: dist/*.whl
           retention-days: 7
           if-no-files-found: error
       - name: Install wheel without changing test dependencies
         run: python -m pip install --force-reinstall --no-deps dist/*.whl
       - name: Inspect installed distribution outside checkout
-        run: cd "$RUNNER_TEMP" && python -c "from importlib.metadata import version; assert version('kmj-vioso-clone') == '0.1.0'" && cd "$RUNNER_TEMP" && vclone --help
+        run: cd "$RUNNER_TEMP" && python -c "from importlib.metadata import version; assert version('kmj-vioso-clone') == '0.2.0a1'" && cd "$RUNNER_TEMP" && vclone --help
 
   windows-wheel:
     runs-on: windows-latest
@@ -67,5 +67,5 @@ jobs:
         shell: pwsh
         run: |
           Set-Location $env:RUNNER_TEMP
-          python -c "from importlib.metadata import version; assert version('kmj-vioso-clone') == '0.1.0'"
+          python -c "from importlib.metadata import version; assert version('kmj-vioso-clone') == '0.2.0a1'"
           vclone --help
