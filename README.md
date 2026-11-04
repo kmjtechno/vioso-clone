@@ -22,6 +22,21 @@ This repository is source code, not a finished replacement for VIOSO 7. Syntheti
 | Player, remote and automation script modules | Implemented at software level; no real NDI/real-time output |
 | Original VIOSO 7 formats, proprietary render API, hardware parity | **Not implemented / not verified** |
 
+## Install as a Python package (M12)
+
+A versioned Python wheel and `vclone` console entrypoint are provided. Use a clean Python virtual environment:
+
+    python -m pip install ".[gui]"
+    vclone --help
+    vclone gui
+
+To create a redistributable wheel from the checked-out source:
+
+    python -m pip install build
+    python -m build --wheel
+
+The wheel installs `vclone` and its independent Python code. This is **not a signed Windows .exe, commercial installer, calibrated hardware release, or native VIOSO file compatibility**. Hardware operations always require local user authorization and their explicit confirmation flags.
+
 ## Quick start
 
 Use a Python environment with OpenCV and NumPy. PySide6 is optional for the GUI; install the GUI-capable OpenCV build for an actual projector window.
