@@ -20,7 +20,7 @@ Official public documentation used for externally verifiable capability descript
 | Curved/dome/irregular geometry | M2 multi-plane fitting, content-space mesh | Lens-model/intrinsics-aware surface estimation and physical dome QA |
 | Soft-edge blend | M14 normalized content-space overlap blending with gamma | Optical edge photometry and luminance/color gradients |
 | Per-projector color | M27 opt-in bounded BGR gain/black subtraction on software frames | Real measured colorimetric matching and linear-light response |
-| Black-level compensation | **Not implemented** as measured region-based black-level *uplift*; M27 encoded-black subtraction is not equivalent | Black-frame capture and region masks / measured projector response |
+| Black-level compensation | **M31 read-only encoded-camera black-frame/overlap diagnostic**; M27 software black subtraction is NOT physical black-level uplift | Calibrated region-based uplift masks, controlled camera measurements and optical verification |
 | 3D camera pose from markers | **M30 read-only OpenCV PnP RANSAC + LM with intrinsic/marker validation and reprojection gates** | Operator-mapped 3D markers, actual camera/lens data, projected physical alignment QA |
 | Multi-projector sync | M15 opt-in still previews, no frame lock | GPU swap-chain, NDI/DirectX timing and synchronized output |
 | Native VIOSO7 calibration format | Clone .sps only; read-only metadata probe | Owner-authorized native .sps sample + independent compatible spec and tests |
