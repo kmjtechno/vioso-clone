@@ -39,7 +39,12 @@ The clone has its own (no-op / open) licensing.
 `<MPPreset><Common tArrangement/><CalibSpace l t r b/><VirtualCanvas l t r b/><Display name core l t r b tUse="normal|Keystone Rect"/>`.
 ### 3.5 SPeASY.ini / Calibrator.ini
 XML (`DebugOptions: ErrorHandling LogFileLevel, CatchUnhandled, SaveErrorDump, AutoRestart…, DefaultSavePath, Image PermitSaving, Camera bShowStreamDuringCalib, Calibration bLoadOnError`) and classic INI (`[common] GUIProfile, [output] tDx9_Presentation, [xmlfile] bSaveCompressed/compressLevel, [calibration] tCalibMethod`).
-### 3.6 Project file `.sps` (XML, optionally compressed) — structure still to be inferred from a sample project (none shipped; need user-provided sample or runtime capture).
+### 3.6 `.sps` settings file and project XML
+Static analysis of `SPCalibrator64.exe` 7.0.4.11052 (details and evidence tags in `docs/re_notes_sps.md`):
+- **Verified (decompile):** the exe does not serialize `.sps` itself. Its project XML writer emits root `VIOSO` > `project` (`version`, `creator`) with generic `property` nodes (`name`, `type`, optional `desc`/`default`). One property, `spspath`, holds the full path of the `.sps` ("settings file", default `_Startup.sps`). Other fields: `name`, `type` (0–5), `state`, `method`, `mrdpath`, `exoptdefpath`, `recalibscriptname`, `editscriptname`, `calibratescriptname`, `screen`, `custommodel`, `localDWC`.
+- **Verified (decompile):** saving `.sps` and loading it go through a request to `SPeASY64.dll` (`SPBehaviourRequest`); the exe appends `.sps` when missing.
+- **Anuman (not decompiled):** `.sps` is XML, optionally compressed (`xmlfile`, `bSaveCompressed`, `compressLevel` settings); the compressor and field layout are **not established**.
+- **Still needed:** analysis of `SPeASY64.dll` or a user-provided sample `.sps` / runtime capture. The clone must not claim `.sps` compatibility until then.
 
 ## 4. Command line (from CmdLn_Param.pdf)
 `/0 /1 /a /A /D:n /E /F:"profile" /I:"ip" /J:n /H[:"file"] /L:"sps" /Lang:n /M /O:"path" /P:"path" /Q:"step[;CloseAfter=yes]" /R /S:"path" /V /X:"name" /Z`
