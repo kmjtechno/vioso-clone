@@ -81,3 +81,24 @@ def test_portable_release_keeps_diagnosable_console_bootloader():
     assert "--console --hide-console hide-early" in workflow
     assert "--windowed" not in workflow
     assert "M42_EXTRACTED_GUI_NO_HARDWARE_SMOKE=PASS" in workflow
+
+
+def test_private_prerelease_replaces_quota_blocked_actions_artifacts():
+    """Source policy: no Actions artifact uploads when account storage is full."""
+    from pathlib import Path
+    workflows = Path(__file__).resolve().parents[1] / ".github" / "workflows"
+    pr = (workflows / "m42-windows-portable.yml").read_text(encoding="utf-8")
+    release = (workflows / "m42-windows-prerelease.yml").read_text(encoding="utf-8")
+    assert "actions/upload-artifact" not in pr
+    assert "actions/upload-artifact" not in release
+    assert "  pull_request:" in pr
+    assert "  push:" not in pr
+    assert "  push:" in release
+    assert "    branches: [main]" in release
+    assert "    permissions:\n      contents: write" in release
+    assert "gh release create" in release
+    assert "--prerelease --latest=false" in release
+    assert "M42_PRERELEASE_EXTRACTED_GUI_NO_HARDWARE=PASS" in release
+    assert "M42_AUTHENTICODE_SIGNED=NO" in release
+    assert "M42_PRERELEASE_BINARY_ASSET_UNVERIFIED" in release
+    assert "GITHUB_REF -ne 'refs/heads/main'" in release

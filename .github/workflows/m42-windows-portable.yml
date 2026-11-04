@@ -7,13 +7,6 @@ on:
       - "tests/test_m42_portable_entry.py"
       - "docs/M42_WINDOWS_PORTABLE_GUI.md"
       - ".github/workflows/m42-windows-portable.yml"
-  push:
-    branches: [main]
-    paths:
-      - "vclone/portable_entry.py"
-      - "tests/test_m42_portable_entry.py"
-      - "docs/M42_WINDOWS_PORTABLE_GUI.md"
-      - ".github/workflows/m42-windows-portable.yml"
 permissions:
   contents: read
 
@@ -77,11 +70,3 @@ jobs:
           Write-Output "M42_NATIVE_VIOSO7_COMPATIBILITY=NOT_VERIFIED"
           Write-Output "M42_PHYSICAL_PROJECTOR_CALIBRATION=NOT_VERIFIED"
           Write-Output "M42_AUTHENTICODE_SIGNATURE=NOT_PRESENT"
-      - name: Publish short-lived verified portable Windows zip from main only
-        if: github.event_name == 'push'
-        uses: actions/upload-artifact@v4
-        with:
-          name: KMJ-VIOSO-Clone-alpha-win64
-          path: dist/KMJ-VIOSO-Clone-alpha-win64.zip
-          retention-days: 3
-          if-no-files-found: error

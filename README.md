@@ -79,7 +79,7 @@ M42 adds an independently implemented **unsigned**, Python-bundled Windows
 GUI ZIP generated after green Windows CI on `main`. It offers the existing
 Qt GUI without a separately installed Python runtime. CI verifies the
 actual frozen executable, extracts the archive and repeats offscreen,
-camera-free GUI checks. GitHub's ephemeral release artifact is **not**
+camera-free GUI checks. GitHub's private prerelease ZIP asset is **not**
 installed on the owner's P520 and is not a signed commercial installer or
 physically verified calibration product. See
 [M42 portable Windows guide](docs/M42_WINDOWS_PORTABLE_GUI.md).
