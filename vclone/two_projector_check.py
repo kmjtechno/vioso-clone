@@ -65,13 +65,24 @@ def check_two_projectors(
     coverage_floor = _threshold(min_union_coverage, "minimum union coverage")
     if not 0 < lower < upper < 1 or not 0 < coverage_floor <= 1:
         raise TwoProjectorError("overlap thresholds must be strictly ordered within 0..1")
+    if any(not isinstance(p.scan, dict) for p in projects):
+        raise TwoProjectorError("project scan metadata must be an object")
+    identifiers = [p.content_space for p in projects]
+    if (all(isinstance(x, str) and x for x in identifiers)
+            and identifiers[0] != identifiers[1]):
+        raise TwoProjectorError("project content space identifiers do not match")
     size = _content_size(projects[0].scan.get("content_size"))
     if projects[1].scan.get("content_size") not in (list(size), tuple(size)):
         raise TwoProjectorError("both projects must share exactly one content coordinate system")
     try:
         meshes = [_validated_mesh(p, size) for p in projects]
+        if any(mesh.shape[0] * mesh.shape[1] > 65536
+               for mesh, _ in meshes):
+            raise TwoProjectorError("calibration mesh exceeds 65536 nodes")
         masks = [calib.coverage_mask(mesh, size) for mesh, _ in meshes]
     except (MultiExportError, ValueError, TypeError, IndexError) as exc:
+        if isinstance(exc, TwoProjectorError):
+            raise
         raise TwoProjectorError("invalid or incomplete calibrated projector mesh") from None
     if any(mask.dtype != np.bool_ or mask.shape != (size[1], size[0])
            or not mask.any() for mask in masks):
@@ -105,6 +116,11 @@ def check_two_projectors(
         "camera_operation": "NONE",
         "content_size": list(size),
         "projector_sizes": [list(dims) for _, dims in meshes],
+        "content_space_identity": (
+            "MATCHING"
+            if all(isinstance(x, str) and x for x in identifiers)
+            else "NOT_VERIFIED"
+        ),
         "coverage_fractions": [round(a_count / total, 6), round(b_count / total, 6)],
         "content_bounds_xywh": [_bbox(a), _bbox(b)],
         "overlap_fraction_of_smaller_projector": round(overlap_small, 6),
