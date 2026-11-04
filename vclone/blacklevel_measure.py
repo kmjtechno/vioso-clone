@@ -66,7 +66,7 @@ def analyze_black_frames(manifest_path):
     size = data["camera_size"]
     if (not isinstance(size, list) or len(size) != 2
             or any(type(n) is not int for n in size)
-            or not 2 <= size[0] <= 4096 or not 2 <= size[1] <= 2160
+            or not 2 <= size[0] <= 4096 or not 2 <= size[1] <= 4096
             or size[0] * size[1] > 4096 * 2160):
         raise BlackLevelError("camera frame dimensions are invalid")
     width, height = size
