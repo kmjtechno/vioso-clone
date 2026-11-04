@@ -73,6 +73,15 @@ opening a camera/projector or writing files. See
 This is software screening only, not optical calibration certification or
 native VIOSO 7 compatibility.
 
+## GUI two-projector seam check (M38)
+
+Open the first calibrated clone JSON in the PySide6 application, then use
+**Calibration > Compare two-projector seam (offline)...** to select the
+second independently calibrated project. The GUI shows M37 overlap/coverage
+software gates and explicit physical limitations without opening cameras,
+projectors or writing calibration files. See
+[M38 offline GUI guide](docs/M38_GUI_TWO_PROJECTOR_SEAM.md).
+
 ## Read-only two-projector seam check (M37)
 
 `vclone two-projector-check left.json right.json` inspects two clone-format
