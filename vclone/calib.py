@@ -10,6 +10,20 @@ import cv2
 import numpy as np
 
 
+def _pos_int(v) -> bool:
+    return isinstance(v, (int, np.integer)) and not isinstance(v, bool) and v > 0
+
+
+def _check_pair(value, label, minimum=1):
+    try:
+        ok = len(value) == 2 and all(_pos_int(v) and v >= minimum for v in value)
+    except TypeError:
+        ok = False
+    if not ok:
+        raise ValueError(f"{label} must be two integers >= {minimum}: {value!r}")
+    return int(value[0]), int(value[1])
+
+
 def _nbits(n: int) -> int:
     return max(1, int(np.ceil(np.log2(n))))
 
@@ -227,6 +241,13 @@ def fit_planes(cam_pts, proj_pts, *, min_plane_points=12, inlier_tol_px=1.0, max
         raise ValueError("no plane with enough consistent support")
     planes.sort(key=lambda p: -len(p.indices))
     return MultiPlane(planes, [int(i) for i in pool])
+
+
+def _check_mesh(mesh, name="mesh", min_nodes=1):
+    m = np.asarray(mesh, np.float64) if mesh is not None else None
+    if m is None or m.ndim != 3 or m.shape[2] != 2 or m.shape[0] < min_nodes or m.shape[1] < min_nodes:
+        raise ValueError(f"{name} must have shape (ny, nx, 2) with at least {min_nodes} node(s) per axis")
+    return m
 
 
 def warp_mesh(cam_mesh, H):
