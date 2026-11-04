@@ -88,7 +88,16 @@ def export_multi(projects, content_path, output_dir, *, gamma=2.2):
         raise MultiExportError("one or more calibrated projectors have no content coverage")
     if len(projects) * content_size[0] * content_size[1] > 32_000_000:
         raise MultiExportError("projector count times content pixels exceeds CPU memory budget")
-    alphas, linear_weights = calib.edge_blend_weights(masks, gamma=float(gamma))
+    # OpenCV distanceTransform returns near-FLT_MAX for a mask containing
+    # only ones (no zero-distance reference), causing float32 sum overflow.
+    # Supply a one-pixel zero border, then remove it after the existing blend
+    # algorithm. This produces finite distance-to-edge weights for full masks.
+    padded_masks = [np.pad(mask, 1, mode="constant", constant_values=False)
+                    for mask in masks]
+    padded_alphas, padded_linear = calib.edge_blend_weights(
+        padded_masks, gamma=float(gamma))
+    alphas = [a[1:-1, 1:-1].copy() for a in padded_alphas]
+    linear_weights = [a[1:-1, 1:-1].copy() for a in padded_linear]
     covered_count = np.sum(np.stack(masks, axis=0), axis=0)
     covered = covered_count > 0
     # The existing distance-transform implementation returns zero right on
