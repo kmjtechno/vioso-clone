@@ -2,7 +2,7 @@
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (QApplication, QDialog, QFileDialog, QHBoxLayout, QLabel,
                                QMainWindow, QMessageBox, QPlainTextEdit, QPushButton,
@@ -11,6 +11,29 @@ from PySide6.QtWidgets import (QApplication, QDialog, QFileDialog, QHBoxLayout, 
 from .gui_model import Session, SessionError
 from .corner_editor import CornerPicker, ScanSetupDialog
 from .capture_dialog import CaptureDialog
+
+
+class CameraProbeWorker(QThread):
+    """Only the explicitly selected camera is opened, outside the UI thread."""
+
+    report_ready = Signal(dict)
+    failed = Signal(str)
+
+    def __init__(self, private_profile, parent=None):
+        super().__init__(parent)
+        self._private_profile = str(private_profile)
+
+    def run(self):
+        from .camera_frame_probe import camera_frame_probe
+
+        try:
+            receipt = camera_frame_probe(
+                self._private_profile, confirmed=True, frames=6, warmup=1)
+        except Exception:
+            # Native OpenCV / plugin errors may contain a private RTSP URL.
+            self.failed.emit("Selected camera frame probe failed; check local source/backend.")
+            return
+        self.report_ready.emit(receipt)
 
 
 class MainWindow(QMainWindow):
@@ -38,6 +61,7 @@ class MainWindow(QMainWindow):
         self.preview_label.setMinimumHeight(180)
         col.addWidget(self.preview_label)
         self._preview_frame = None
+        self._camera_probe_worker = None
         self.preview_export_button = QPushButton("Save CPU preview as new PNG...")
         self.preview_export_button.setEnabled(False)
         self.preview_export_button.clicked.connect(self.save_preview_png)
@@ -56,6 +80,7 @@ class MainWindow(QMainWindow):
         calib_menu.addSeparator()
         calib_menu.addAction("Check camera profile (offline)...", self.check_camera_profile)
         calib_menu.addAction("Check Windows projector rig (read-only)...", self.check_display_rig)
+        calib_menu.addAction("Probe selected camera (explicit consent)...", self.probe_selected_camera)
         self.refresh()
 
     def refresh(self):
@@ -196,6 +221,96 @@ class MainWindow(QMainWindow):
         except (SessionError, ValueError, OSError) as exc:
             QMessageBox.warning(self, "Read-only projector rig", str(exc))
         self.refresh()
+
+    def probe_selected_camera(self):
+        """Require a new affirmative click before starting exactly one camera."""
+        if self._camera_probe_worker is not None:
+            QMessageBox.warning(self, "Camera-only preflight", "One camera probe is already running.")
+            return
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Choose ONE owner-managed private camera source profile",
+            "", "Camera source JSON (*.json)")
+        if not path:
+            return
+        try:
+            profile = self.session.inspect_camera_profile(path)
+        except (SessionError, ValueError, OSError):
+            QMessageBox.warning(
+                self, "Camera-only preflight", "Selected camera source profile is invalid.")
+            self.refresh()
+            return
+        consent = QMessageBox.question(
+            self, "Confirm camera-only probe",
+            f"Open ONLY the selected {profile['camera_type']} camera source "
+            "and sample 6 frames (1 warmup)?\n\n"
+            "This does not turn on projectors, display patterns, save pixels "
+            "or prove optical calibration.\n"
+            "Camera or network access occurs only after you choose Yes.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No)
+        if consent != QMessageBox.StandardButton.Yes:
+            self.refresh()
+            return
+        worker = CameraProbeWorker(path, self)
+        self._camera_probe_worker = worker
+        worker.report_ready.connect(self._camera_probe_ready)
+        worker.failed.connect(self._camera_probe_failed)
+        worker.finished.connect(self._camera_probe_finished)
+        self.session._note("camera-only frame probe running; projectors untouched")
+        self.refresh()
+        worker.start()
+
+    def _camera_probe_ready(self, report):
+        """Show only pre-approved aggregate camera diagnostics (no images/URIs)."""
+        if (not isinstance(report, dict)
+                or report.get("camera_connection") != "OPENED_AND_FRAMES_READ"):
+            self._camera_probe_failed("Camera probe did not return a validated frame report.")
+            return
+        size = report.get("camera_size", [])
+        if (not isinstance(size, (list, tuple)) or len(size) != 2
+                or any(type(x) is not int or x < 1 for x in size)):
+            self._camera_probe_failed("Camera frame dimensions were invalid.")
+            return
+        exposure = report.get("exposure_screening", "NOT_VERIFIED")
+        self.session._note(
+            f"camera-only source frames: {report.get('frames_observed', 0)}; "
+            f"exposure={exposure}; hardware_optical_acceptance=NOT_VERIFIED")
+        details = (
+            "Camera connection: OPENED_AND_FRAMES_READ\n"
+            f"Camera dimensions: {size[0]} x {size[1]}\n"
+            f"Frames observed: {report.get('frames_observed', 0)}\n"
+            f"Exposure screening: {exposure}\n"
+            "Physical optical calibration: NOT VERIFIED\n"
+            "Projector operation: NONE\n"
+            "Camera frame pixels were not saved.")
+        if exposure == "FRAME_DATA_PRESENT":
+            QMessageBox.information(self, "Camera-only preflight", details)
+        else:
+            QMessageBox.warning(self, "Camera-only preflight", details)
+        self.refresh()
+
+    def _camera_probe_failed(self, _message):
+        # Never emit backend exceptions, file paths or credential-bearing URLs.
+        self.session._note("camera-only frame probe failed; hardware acceptance NOT_VERIFIED")
+        QMessageBox.warning(
+            self, "Camera-only preflight",
+            "Selected camera could not be probed safely. No optical calibration was accepted.")
+        self.refresh()
+
+    def _camera_probe_finished(self):
+        if self._camera_probe_worker is not None:
+            self._camera_probe_worker.deleteLater()
+            self._camera_probe_worker = None
+
+    def closeEvent(self, event):
+        worker = self._camera_probe_worker
+        if worker is not None and worker.isRunning():
+            QMessageBox.information(
+                self, "Camera-only preflight",
+                "Camera frame probe is running. Close the application after it finishes.")
+            event.ignore()
+            return
+        super().closeEvent(event)
 
     def compare_two_projectors(self):
         """Show a read-only software seam report; never activate projectors."""
