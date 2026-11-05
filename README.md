@@ -470,3 +470,13 @@ twice; M15 opens timed still windows on selected projectors. This is actual
 operator-controlled multi-display still presentation, not genlocked or
 synchronized VIOSO 7 video. Hardware optical QA remains mandatory.
 Read the [M60 multi-still operator guide](docs/M60_GUI_VERIFIED_MULTI_STILL.md).
+
+
+## M61 — Manual warp mesh adjustment in Studio
+
+Use **Edit Warp Mesh** after a real calibrated clone project has a mesh.
+Choose observed control points on a visual wireframe, apply small bounded
+content-space X/Y changes, then Save reviewed mesh corrections. Cancel
+leaves the project untouched. The project coverage is recomputed and old
+Export state invalidated; no camera/projector/file operation occurs until
+separately confirmed. [M61 manual warp editor guide](docs/M61_MANUAL_WARP_MESH_GUI.md).

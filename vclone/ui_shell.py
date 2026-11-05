@@ -261,6 +261,9 @@ def build_studio(window):
         "Present Multi Still", window.present_multi_still,
         tip="Output verified M14 calibrated PNGs to distinct extended projectors; double consent"))
     side_col.addWidget(_action(
+        "Edit Warp Mesh", window.edit_warp_mesh,
+        tip="Visually select calibrated mesh nodes and apply bounded reversible corrections"))
+    side_col.addWidget(_action(
         "Check Capture Quality", window.check_capture_quality,
         tip="Read-only existing Gray-code PNG/manifest analysis; no camera or projector"))
     side_col.addWidget(_label("DEVICE CONTROL", "SectionHeading"))

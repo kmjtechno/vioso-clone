@@ -15,6 +15,7 @@ from .onvif_quick_dialog import OnvifQuickProbeDialog
 from .ui_shell import build_studio
 from .offline_blend_dialog import OfflineBlendDialog
 from .capture_quality_dialog import CaptureQualityDialog
+from .manual_mesh_editor import MeshEditorDialog, MeshEditorError
 from .multi_still_gui import (MultiStillDialog, MultiStillError,
                               load_sizes, present_verified_blend)
 from .projector_still_gui import (ProjectorStillDialog, ProjectorStillError,
@@ -161,6 +162,8 @@ class MainWindow(QMainWindow):
                              self.present_calibrated_still)
         calib_menu.addAction("Present verified multi-projector blend (confirmed)…",
                              self.present_multi_still)
+        calib_menu.addAction("Edit calibrated warp mesh (offline)…",
+                             self.edit_warp_mesh)
         self.refresh()
 
     def refresh(self):
@@ -411,6 +414,33 @@ class MainWindow(QMainWindow):
             self._capture_check_worker.deleteLater()
             self._capture_check_worker = None
 
+
+
+    def edit_warp_mesh(self):
+        """Offline visual control-point refinement; cancel never touches project."""
+        source = self.session.project.result.get("mesh")
+        if not source:
+            QMessageBox.warning(
+                self, "Manual warp mesh",
+                "Run real camera/Gray-code calibration before editing warp points.")
+            return
+        try:
+            dialog = MeshEditorDialog(
+                source, self.session.project.scan.get("content_size"), self)
+        except (MeshEditorError, ValueError, TypeError, KeyError):
+            QMessageBox.warning(
+                self, "Manual warp mesh",
+                "MESH_EDITOR_REFUSED. Invalid or unsupported calibrated mesh.")
+            return
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        proposed = dialog.values()
+        if proposed is None:
+            return
+        # Actual Session edit validates every node and recomputes coverage
+        # atomically. Never save to disk or control a projector implicitly.
+        self.clear_preview()
+        self._guard(self.session.apply_manual_mesh, proposed)
 
     def present_multi_still(self):
         """Present SHA-verified M14 images on distinct selected Extended screens."""
