@@ -26,6 +26,7 @@ def _dialog(tmp_path):
 
 
 def test_dialog_writes_nothing_and_requires_explicit_checkbox(tmp_path):
+    qt()
     from PySide6.QtWidgets import QDialog
     d, p1, p2 = _dialog(tmp_path)
     try:
@@ -41,6 +42,7 @@ def test_dialog_writes_nothing_and_requires_explicit_checkbox(tmp_path):
 
 def test_dialog_only_accepts_two_distinct_existing_clone_files_and_new_output(
         tmp_path, monkeypatch):
+    qt()
     from PySide6.QtWidgets import QDialog, QMessageBox
     d, left, right = _dialog(tmp_path)
     warnings = []
