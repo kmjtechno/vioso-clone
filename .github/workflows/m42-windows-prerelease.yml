@@ -3,10 +3,11 @@ on:
   push:
     branches: [main]
     paths:
-      - "vclone/portable_entry.py"
-      - "tests/test_m42_portable_entry.py"
+      # Rebuild on ANY runtime/GUI or dependency change, including M44 RTSP
+      # Gray-code capture; otherwise the published EXE remains stale.
+      - "vclone/**"
+      - "pyproject.toml"
       - ".github/workflows/m42-windows-prerelease.yml"
-      - "docs/M42_WINDOWS_PORTABLE_GUI.md"
 permissions:
   contents: read
 
