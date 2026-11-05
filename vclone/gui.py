@@ -83,6 +83,8 @@ class MainWindow(QMainWindow):
         calib_menu.addAction("Probe selected camera (explicit consent)...", self.probe_selected_camera)
         calib_menu.addAction("Connect ONVIF camera (no saved credentials)...",
                              self.probe_onvif_camera_once)
+        # Purely local project metadata summary; no network or screen output.
+        self.menuBar().addAction("Workflow Checklist", self.show_workflow_checklist)
         self.refresh()
 
     def refresh(self):
@@ -207,6 +209,15 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(
                 self, "Offline camera profile", "Camera profile validation refused.")
         self.refresh()
+
+    def show_workflow_checklist(self):
+        """Read-only software feature readiness; never opens camera/projector."""
+        from .calibration_readiness import human_checklist
+        QMessageBox.information(
+            self, "Calibration Studio — Workflow checklist",
+            "Project metadata and supported software capabilities only.\n"
+            "This does NOT attest any real camera or projector.\n\n"
+            + human_checklist(self.session.project))
 
     def check_display_rig(self):
         """Read only the local Windows display layout; no projector switch-on."""
