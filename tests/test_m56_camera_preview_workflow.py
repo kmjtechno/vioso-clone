@@ -136,7 +136,8 @@ def test_readiness_empty_project_never_claims_pass_or_hardware_verification():
         "corners", "calibration", "blend", "export"]
     assert stages[0].status == "OPERATOR_TEST_REQUIRED"
     assert stages[5].status == "CALIBRATION_REQUIRED"
-    assert "verified" not in human_checklist(p).lower().replace("not verified", "")
+    assert all(s.status != "HARDWARE_VERIFIED" for s in stages)
+    assert "Multi-projector seam and blend" in human_checklist(p)
     assert not any(s.status == "PASS" for s in stages)
 
 
