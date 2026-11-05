@@ -48,7 +48,7 @@ def _endpoint(raw):
     try:
         parsed = urlsplit(raw)
         host = _private_ip(parsed.hostname)
-        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        port = parsed.port if parsed.port is not None else (443 if parsed.scheme == "https" else 80)
     except ValueError:
         raise DiscoveryError("ONVIF discovery endpoint invalid") from None
     path = parsed.path
