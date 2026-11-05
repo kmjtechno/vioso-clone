@@ -48,7 +48,7 @@ class CaptureDialog(QDialog):
         self.camera = _spin(0, 15, 0)
         self._camera_profile_path = None
         self.use_profile = QCheckBox(
-            "Use ONE private camera source profile (RTSP / fisheye / USB / replay)")
+            "Use ONE private camera source profile (ONVIF / RTSP / fisheye / USB / replay)")
         self.profile_button = QPushButton("Select private camera profile...")
         self.profile_button.setEnabled(False)
         self.profile_label = QLabel("No private camera profile selected")
