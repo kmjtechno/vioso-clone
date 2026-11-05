@@ -20,7 +20,7 @@ MAX_PROFILE_BYTES = 16384
 MAX_URL_LENGTH = 2048
 MAX_REPLAY_BYTES = 16 * 1024 ** 3
 NETWORK_TYPES = {"rtsp", "rtsps", "onvif_rtsp", "http_mjpeg", "https_mjpeg"}
-TYPES = NETWORK_TYPES | {"usb", "video_file", "sdk"}
+TYPES = NETWORK_TYPES | {"usb", "video_file", "sdk", "onvif"}
 BACKENDS = {"auto", "dshow", "msmf", "ffmpeg", "gstreamer"}
 
 
@@ -66,6 +66,13 @@ def validate_profile(data):
             raise CameraSourceError("USB camera index must be 0..15")
         if backend not in ("auto", "dshow", "msmf", "gstreamer"):
             raise CameraSourceError("USB camera backend incompatible")
+    elif kind == "onvif":
+        # Control-plane ONVIF profile is an owner-managed LOCAL record, not
+        # a guessed RTSP URL; reading it offline never opens a network socket.
+        from .onvif_client import validate_source
+        validate_source(value)
+        if backend not in ("auto", "ffmpeg"):
+            raise CameraSourceError("ONVIF Media1 requires FFmpeg capture backend")
     elif kind in NETWORK_TYPES:
         if (not isinstance(value, str) or not 6 <= len(value) <= MAX_URL_LENGTH
                 or any(ord(c) < 33 or ord(c) == 127 for c in value)):
@@ -133,7 +140,7 @@ def profile_status(profile):
 
 def _api_backend(name, *, kind):
     if name == "auto":
-        name = "ffmpeg" if kind in NETWORK_TYPES | {"video_file"} else "auto"
+        name = "ffmpeg" if kind in NETWORK_TYPES | {"video_file", "onvif"} else "auto"
     names = {
         "auto": "CAP_ANY", "dshow": "CAP_DSHOW", "msmf": "CAP_MSMF",
         "ffmpeg": "CAP_FFMPEG", "gstreamer": "CAP_GSTREAMER",
@@ -163,9 +170,20 @@ def open_camera(profile, *, sdk_adapters=None):
         backend = _api_backend(data["backend"], kind=kind)
         stream = cv2.VideoCapture(value) if backend == cv2.CAP_ANY else cv2.VideoCapture(value, backend)
     else:
-        value = _safe_path(data["source"]) if kind == "video_file" else data["source"]
+        if kind == "onvif":
+            # READ_ONLY ONVIF Media1 negotiation happens only when an already
+            # confirmed camera probe/capture explicitly opens this profile.
+            # The only emitted video URL is for this selected private camera.
+            from .onvif_client import OnvifError, resolve_stream_uri
+            try:
+                value = resolve_stream_uri(data["source"])
+            except OnvifError:
+                raise CameraSourceError(
+                    "selected private ONVIF media stream could not be resolved") from None
+        else:
+            value = _safe_path(data["source"]) if kind == "video_file" else data["source"]
         backend = _api_backend(data["backend"], kind=kind)
-        if kind in NETWORK_TYPES:
+        if kind in NETWORK_TYPES | {"onvif"}:
             # Bounded open/read support, without fallback to unbounded network
             # VideoCapture on systems missing this capability.
             if (not hasattr(cv2, "CAP_PROP_OPEN_TIMEOUT_MSEC")
@@ -177,7 +195,7 @@ def open_camera(profile, *, sdk_adapters=None):
             ]
             try:
                 stream = cv2.VideoCapture(value, backend, timeout)
-            except (TypeError, cv2.error) as exc:
+            except (TypeError, cv2.error):
                 raise CameraSourceError("network camera backend cannot enforce timeouts") from None
         else:
             stream = cv2.VideoCapture(value, backend)
