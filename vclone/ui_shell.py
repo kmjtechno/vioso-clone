@@ -314,6 +314,9 @@ def build_studio(window):
         "Preview Content", window.preview_content,
         tip="Preview already configured calibration locally"))
     actions.addWidget(_action(
+        "Present Still", window.present_calibrated_still,
+        tip="ONE timed warped still on physically verified extended projector; double consent"))
+    actions.addWidget(_action(
         "Workflow Checklist", window.show_workflow_checklist,
         tip="Read-only metadata and next software steps; no devices accessed"))
     actions.addStretch(1)
