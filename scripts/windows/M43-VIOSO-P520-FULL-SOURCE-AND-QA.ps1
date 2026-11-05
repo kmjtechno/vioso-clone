@@ -1,4 +1,4 @@
-# M43: Full Git history, clean sibling P520 clone and optional offline GUI QA.
+# M43/M45: Full Git history in a new nested P520 clone and optional offline GUI QA.
 # REVIEW BEFORE RUNNING. Default = PLAN ONLY; -Execute is the sole write gate.
 # No reset/clean or modification of the existing VIOSO-Clone owner checkout.
 [CmdletBinding()]
@@ -6,7 +6,7 @@ param(
     [Parameter(Mandatory = $true)]
     [ValidatePattern('^[a-fA-F0-9]{40}$')]
     [string]$ExpectedMainSha,
-    [string]$WorkspaceRoot = 'E:\KMJ\Codex',
+    [string]$WorkspaceRoot = 'E:\KMJ\Codex\VIOSO-Clone\FullSource',
     [switch]$Execute,
     [switch]$RunQA
 )
@@ -79,9 +79,23 @@ if ($HasToken) {
     $Encoded = $null
 }
 
-# Avoid Git's inherited checkout-specific extra headers when running from
-# the owner's dirty repo. Git runs from a separate, already existing root.
-Push-Location -LiteralPath $Root
+# Root is INSIDE the owner's dirty Git checkout. Git ls-remote/clone must
+# run OUTSIDE that parent Git worktree to avoid inherited local auth headers,
+# hooks or repository filters. Destination stays in the approved nested path.
+$SafeGitCwd = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
+$GitCwdInfo = Get-Item -LiteralPath $SafeGitCwd -Force -ErrorAction Stop
+if (-not $GitCwdInfo.PSIsContainer -or
+        ($GitCwdInfo.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+    throw 'M45_SAFE_GIT_CONTEXT_UNAVAILABLE'
+}
+$OwnerRepo = [IO.Path]::GetFullPath('E:\KMJ\Codex\VIOSO-Clone')
+if ($SafeGitCwd.StartsWith(
+        $OwnerRepo.TrimEnd([IO.Path]::DirectorySeparatorChar) +
+        [IO.Path]::DirectorySeparatorChar,
+        [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'M45_GIT_CONTEXT_IS_INSIDE_OWNER_CHECKOUT'
+}
+Push-Location -LiteralPath $SafeGitCwd
 try {
     $Lines = @(& $GitExe ls-remote --heads $RepoUrl main)
     Check-Exit 'REMOTE_MAIN_LOOKUP'
