@@ -364,3 +364,13 @@ account and two-step consent. It reports six frames without saving passwords,
 camera pixels or credentials to a project; projectors remain OFF. Actual CP
 PLUS connectivity and optical acceptance require owner-local hardware QA.
 See [M49 ONVIF quick-probe guide](docs/M49_ONVIF_ONE_SHOT_GUI.md).
+
+
+## Premium dark Calibration Studio (M51)
+
+The original Windows alpha's plain gray button-row layout is replaced with
+an independent professional dark PySide6 workspace: persistent workflow
+navigation, camera/projector/calibration status cards, calibrated preview,
+real ONVIF/display/capture actions and session activity. No fake hardware
+PASS; all physical acceptance gates remain separate. See the
+[M51 design and testing guide](docs/M51_PREMIUM_CALIBRATION_STUDIO.md).
