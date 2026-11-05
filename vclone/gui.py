@@ -246,7 +246,8 @@ class MainWindow(QMainWindow):
             # selected private profile is supplied only for this confirmed run.
             # It is never serialized into the project or GUI log.
             self._guard(self.session.capture_camera_scan, *dialog.values(),
-                        dialog.selected_camera_profile())
+                        dialog.selected_camera_profile(),
+                        dialog.selected_projector_mask())
 
 
     def present_calibrated_still(self):
