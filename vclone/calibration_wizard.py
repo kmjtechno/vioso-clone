@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from .gui_model import Session
+from .fisheye_wizard import FisheyeCalibrationDialog
 from .project import Project
 from .wizard_engine import (
     WizardSolveError, capture_fingerprint, inspect_capture,
@@ -261,6 +262,11 @@ class CalibrationWizard(QDialog):
             self._add_studio("Attach existing Gray-code capture folder", "setup_scan",
                              "Import existing scan manifest/images with exact sizes, without projector output.")
         elif stage == "quality":
+            self._action("Measure fisheye lens from checkerboard photos",
+                         self.measure_fisheye,
+                         "Use 12–48 owner-captured checkerboard images. Real OpenCV "
+                         "fisheye fit produces a NEW JSON profile only after strict "
+                         "reprojection/coverage checks; no hardware operation.")
             self._action("Validate THIS project's Gray-code capture", self.run_quality,
                          "Real M25 quality check: all pattern PNGs, contrast, decoded valid area and axis span. "
                          "Read-only CPU worker, not a simulated pass.")
@@ -438,7 +444,21 @@ class CalibrationWizard(QDialog):
         self.close_button.setEnabled(True)
         self.goto(self._index)
 
-    def attach_fisheye(self):
+    def measure_fisheye(self):
+        """Real M32 photo-based lens model; never changes owner project silently."""
+        if self._task is not None:
+            return
+        folder = self.studio.session.project.scan.get("dir")
+        dialog = FisheyeCalibrationDialog(folder, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            output = dialog.values()
+            if output:
+                # Explicit final consent for invalidating old distorted-space
+                # corner correspondences is still required by attach_fisheye.
+                self.attach_fisheye(preferred_path=str(output))
+        self.refresh_status()
+
+    def attach_fisheye(self, preferred_path=None):
         """Link only an existing measured profile in this capture directory."""
         if self._task is not None:
             return
@@ -452,9 +472,12 @@ class CalibrationWizard(QDialog):
             QMessageBox.warning(
                 self, "Fisheye profile", "Configure a real camera capture folder first.")
             return
-        choice, _ = QFileDialog.getOpenFileName(
-            self, "Choose measured OpenCV fisheye intrinsics within capture folder",
-            str(root), "Fisheye JSON (*.json)")
+        if preferred_path is None:
+            choice, _ = QFileDialog.getOpenFileName(
+                self, "Choose measured OpenCV fisheye intrinsics within capture folder",
+                str(root), "Fisheye JSON (*.json)")
+        else:
+            choice = preferred_path
         if not choice:
             return
         try:
