@@ -54,14 +54,21 @@ def _summarize_frame(frame):
     return (width, height), small, (mean, black, white, sharpness)
 
 
-def camera_frame_probe(camera_profile_path, *, confirmed=False, frames=8, warmup=1):
+def camera_frame_probe(camera_profile_path, *, confirmed=False, frames=8, warmup=1,
+                       return_preview=False):
     """Sample one explicitly chosen camera; no filesystem writes or projection.
 
     The report is suitable for preflight screening while projectors are OFF.
     This does NOT validate geometric calibration, calibration exposure or lens
     correction, nor does an RTSP profile imply camera model compatibility.
+
+    When explicitly opted into return_preview=True, return (safe_report,
+    last_gray_thumbnail) for LOCAL UI display only. No image bytes are added
+    to reports, logs, camera files or saved project state.
     """
     _settings(confirmed=confirmed, frames=frames, warmup=warmup)
+    if type(return_preview) is not bool:
+        raise CameraProbeError("preview opt-in must be a boolean")
     try:
         # A GUI one-shot ONVIF probe passes an in-memory private profile.
         # Legacy CLI and GUI can still choose an existing local JSON file.
@@ -131,7 +138,7 @@ def camera_frame_probe(camera_profile_path, *, confirmed=False, frames=8, warmup
     else:
         signal = "FRAME_DATA_PRESENT"
     width, height = shapes[0]
-    return {
+    report = {
         "schema": "kmj.camera.frame-probe.v1",
         "read_only_no_capture_files": True,
         "projector_operation": "NONE",
@@ -152,3 +159,9 @@ def camera_frame_probe(camera_profile_path, *, confirmed=False, frames=8, warmup
         "hardware_optical_acceptance": "NOT_VERIFIED",
         "native_vioso_sps_compatible": False,
     }
+    if return_preview:
+        # The private thumbnail NEVER enters the report, project or filesystem.
+        # The caller may render it locally after explicit camera consent.
+        # Previous is a bounded <=320x240 grayscale copy (one frame only).
+        return report, previous.copy()
+    return report
