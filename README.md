@@ -385,3 +385,14 @@ Media1/RTSP stream with both username and password blank; on devices that
 require authentication, login remains optional and explicit. Camera-only
 consent is still required. No projectors are started, and no passwords are
 guessed or saved. [M52 guide](docs/M52_ONVIF_AUTO_DISCOVERY_NO_PASSWORD.md).
+
+
+## Legacy V2.5 CP PLUS ONVIF compatibility (M54)
+
+Historical sanitized diagnostics show the older Calibration Pro V2.5 used
+saved secure-profile credentials, HTTPS UsernameToken PasswordText fallback
+when digest was rejected, and a 27-entry Media1 profile list with
+`MediaProfile00000` as a usable stream candidate. M54 implements these
+protocol compatibility guards independently, without copying old passwords
+or weakening TLS. Real CP PLUS camera test remains owner-local and pending.
+See [M54 authentication guide](docs/M54_V25_ONVIF_AUTH_COMPAT.md).
