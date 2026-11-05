@@ -52,7 +52,8 @@ class Session:
 
     def capture_camera_scan(self, output_dir, projector_size, content_size, camera_index,
                             projector_x, projector_y, settle_ms=250, warmup_frames=2,
-                            confirmed=False, camera_profile_path=None):
+                            confirmed=False, camera_profile_path=None,
+                            projector_mask_path=None):
         """Opt-in capture, including selected private M33 source profile if requested.
 
         Private stream URLs/credentials and owner profile path are never logged.
@@ -67,15 +68,17 @@ class Session:
             raise SessionError("capture destination must be new under an existing regular folder")
         from . import capture
         try:
+            extra = ({} if projector_mask_path is None else
+                     {"projector_mask_path": projector_mask_path})
             receipt = capture.capture_opencv(
                 pwidth, pheight, target, camera_index=camera_index,
                 projector_x=projector_x, projector_y=projector_y,
                 settle_ms=settle_ms, warmup_frames=warmup_frames, confirmed=True,
-                camera_profile_path=camera_profile_path)
+                camera_profile_path=camera_profile_path, **extra)
             # configure_scan also validates the output image and capture manifest.
             self.configure_scan(target, [pwidth, pheight], [cwidth, cheight])
         except (capture.CaptureError, OSError, ValueError, TypeError, SessionError) as exc:
-            if camera_profile_path is not None:
+            if camera_profile_path is not None or projector_mask_path is not None:
                 # A third-party camera backend may embed the RTSP URI/password
                 # inside an exception. Refuse to log any underlying error.
                 raise SessionError(
@@ -83,7 +86,7 @@ class Session:
                     "projector capture failed; optical acceptance NOT_VERIFIED") from None
             raise SessionError(f"capture not accepted: {exc}") from exc
         except Exception:
-            if camera_profile_path is not None:
+            if camera_profile_path is not None or projector_mask_path is not None:
                 raise SessionError(
                     "capture not accepted: selected private camera source or "
                     "projector capture failed; optical acceptance NOT_VERIFIED") from None
@@ -121,7 +124,8 @@ class Session:
         new_scan.update(dir=str(source), proj_size=[pwidth, pheight],
                         content_size=[cwidth, cheight])
         if changed:
-            for key in ("cam_corners", "content_corners", "camera_size", "corner_image"):
+            for key in ("cam_corners", "content_corners", "camera_size",
+                        "corner_image", "corner_reference_space"):
                 new_scan.pop(key, None)
             self.project.result = {}
             self.project.steps_done = [
@@ -144,6 +148,8 @@ class Session:
         new_scan["content_corners"] = content_corners((cw, ch))
         new_scan["camera_size"] = list(validate_size(image_size))
         new_scan["corner_image"] = "p00.png"
+        new_scan["corner_reference_space"] = (
+            "rectified_fisheye" if new_scan.get("fisheye_profile") else "raw")
         self.project.scan = new_scan
         self.project.result = {}  # previous calibration is no longer valid
         self.project.steps_done = [

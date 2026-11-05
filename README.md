@@ -480,3 +480,16 @@ content-space X/Y changes, then Save reviewed mesh corrections. Cancel
 leaves the project untouched. The project coverage is recomputed and old
 Export state invalidated; no camera/projector/file operation occurs until
 separately confirmed. [M61 manual warp editor guide](docs/M61_MANUAL_WARP_MESH_GUI.md).
+
+
+## M62 — Full Guided Calibration Wizard
+
+Calibration Studio now includes a **10-stage guided workflow** for project,
+camera, projector display, real Gray-code capture, quality screening,
+measured fisheye rectification and corrected corners, detached CPU warp
+solve, manual mesh refinement, two-projector edge blending and verified
+still preview/export. The capture dialog also supports an optional strict
+8-bit grayscale projector mask. Projector A and B require separate measured
+clone JSONs. All device access remains locally consented. Software QA does
+not equal physical optical acceptance or proprietary VIOSO 7 parity.
+See [M62 wizard owner guide](docs/M62_GUIDED_CALIBRATION_WIZARD.md).

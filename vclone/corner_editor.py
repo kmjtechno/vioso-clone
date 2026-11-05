@@ -7,8 +7,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
+
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QBrush, QImageReader, QPainter, QPen, QPixmap
+from PySide6.QtGui import QColor, QBrush, QImage, QImageReader, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QGraphicsScene,
     QGraphicsView, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton,
@@ -50,7 +52,7 @@ class _ImageClickView(QGraphicsView):
 class CornerPicker(QDialog):
     LABELS = ("TL", "TR", "BR", "BL")
 
-    def __init__(self, image_path, parent=None):
+    def __init__(self, image_path, parent=None, *, rectified_frame=None):
         super().__init__(parent)
         self.setWindowTitle("Camera corners — click TL → TR → BR → BL")
         source = Path(image_path)
@@ -64,6 +66,20 @@ class CornerPicker(QDialog):
         image = reader.read()
         if image.isNull():
             raise ValueError("cannot decode camera reference image")
+        if rectified_frame is not None:
+            if (not isinstance(rectified_frame, np.ndarray)
+                    or rectified_frame.dtype != np.uint8
+                    or rectified_frame.ndim != 2
+                    or rectified_frame.shape != (self.image_size[1], self.image_size[0])
+                    or not rectified_frame.flags.c_contiguous):
+                raise ValueError("rectified corner frame must match camera image")
+            h, w = rectified_frame.shape
+            image = QImage(rectified_frame.data, w, h, rectified_frame.strides[0],
+                           QImage.Format.Format_Grayscale8).copy()
+            if image.isNull():
+                raise ValueError("rectified camera reference unavailable")
+            self.setWindowTitle(
+                "RECTIFIED fisheye camera corners — TL → TR → BR → BL")
         pixmap = QPixmap.fromImage(image)
         self.points = []
         self._items = []

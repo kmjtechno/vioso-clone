@@ -47,6 +47,7 @@ class CaptureDialog(QDialog):
         self.ch = _spin(2, 2160, int(content[1]))
         self.camera = _spin(0, 15, 0)
         self._camera_profile_path = None
+        self._projector_mask_path = None
         self.use_profile = QCheckBox(
             "Use ONE private camera source profile (ONVIF / RTSP / fisheye / USB / replay)")
         self.profile_button = QPushButton("Select private camera profile...")
@@ -71,6 +72,17 @@ class CaptureDialog(QDialog):
         form.addRow("Camera source mode", self.use_profile)
         form.addRow("Select existing private profile", self.profile_button)
         form.addRow("Selected profile status", self.profile_label)
+        self.use_projector_mask = QCheckBox(
+            "Use a verified 8-bit grayscale projector mask (black=blocked)")
+        self.projector_mask_button = QPushButton("Choose projector mask PNG…")
+        self.projector_mask_button.setEnabled(False)
+        self.projector_mask_label = QLabel("No projector-side mask selected")
+        self.use_projector_mask.toggled.connect(
+            self.projector_mask_button.setEnabled)
+        self.projector_mask_button.clicked.connect(self._browse_projector_mask)
+        form.addRow("Projection masking", self.use_projector_mask)
+        form.addRow("Projector mask file", self.projector_mask_button)
+        form.addRow("Mask selection", self.projector_mask_label)
 
         self.confirm = QCheckBox(
             "I verified the physical projector and X/Y; start camera/output only after OK")
@@ -99,6 +111,19 @@ class CaptureDialog(QDialog):
             self._camera_profile_path = path
             self.profile_label.setText("One private profile selected; OFFLINE validation on OK")
 
+    def _browse_projector_mask(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Choose 8-bit grayscale projector mask PNG", "",
+            "Projector Mask (*.png)")
+        if path:
+            self._projector_mask_path = path
+            self.projector_mask_label.setText(
+                "Mask selected; exact dimensions verified before capture")
+
+    def selected_projector_mask(self):
+        return (self._projector_mask_path
+                if self.use_projector_mask.isChecked() else None)
+
     def selected_camera_profile(self):
         """Only selected local file path, never persisted in project/log."""
         return self._camera_profile_path if self.use_profile.isChecked() else None
@@ -124,6 +149,21 @@ class CaptureDialog(QDialog):
                 QMessageBox.warning(
                     self, "Capture refused",
                     "Private camera profile failed offline validation.")
+                return
+        if self.use_projector_mask.isChecked():
+            if not self._projector_mask_path:
+                QMessageBox.warning(
+                    self, "Capture refused", "Choose a projector grayscale mask first.")
+                return
+            from .projector_mask import read_projector_mask
+            try:
+                read_projector_mask(
+                    self._projector_mask_path, (self.pw.value(), self.ph.value()))
+            except (OSError, ValueError, TypeError):
+                QMessageBox.warning(
+                    self, "Capture refused",
+                    "Projector mask must be an 8-bit grayscale PNG matching "
+                    "the selected projector width and height. No hardware started.")
                 return
         self.accept()
 

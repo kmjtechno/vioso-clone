@@ -16,6 +16,7 @@ from .ui_shell import build_studio
 from .offline_blend_dialog import OfflineBlendDialog
 from .capture_quality_dialog import CaptureQualityDialog
 from .manual_mesh_editor import MeshEditorDialog, MeshEditorError
+from .calibration_wizard import CalibrationWizard
 from .multi_still_gui import (MultiStillDialog, MultiStillError,
                               load_sizes, present_verified_blend)
 from .projector_still_gui import (ProjectorStillDialog, ProjectorStillError,
@@ -141,6 +142,8 @@ class MainWindow(QMainWindow):
         m.addAction("Save &As...", self.save_project_as)
         m.addAction("&Quit", self.close)
         calib_menu = self.menuBar().addMenu("&Calibration")
+        calib_menu.addAction("Full Guided Calibration Wizard...",
+                             self.open_calibration_wizard)
         calib_menu.addAction("&Setup capture folder and dimensions...", self.setup_scan)
         calib_menu.addAction("&Capture Gray-code from camera...", self.capture_camera)
         calib_menu.addAction("&Select camera corners...", self.select_corners)
@@ -215,6 +218,19 @@ class MainWindow(QMainWindow):
             self._guard(self.session.save, f)
 
 
+    def open_calibration_wizard(self):
+        """Real 10-stage guided camera/rig/capture/warp/blend workflow."""
+        if getattr(self, "_active_calibration_wizard", None) is not None:
+            return
+        wizard = CalibrationWizard(self)
+        self._active_calibration_wizard = wizard
+        try:
+            wizard.exec()
+        finally:
+            self._active_calibration_wizard = None
+            wizard.deleteLater()
+            self.refresh()
+
     def setup_scan(self):
         dialog = ScanSetupDialog(self.session.project.scan, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
@@ -229,8 +245,14 @@ class MainWindow(QMainWindow):
             # The dialog's existing positional arguments stay unchanged; the
             # selected private profile is supplied only for this confirmed run.
             # It is never serialized into the project or GUI log.
-            self._guard(self.session.capture_camera_scan, *dialog.values(),
-                        dialog.selected_camera_profile())
+            args = (*dialog.values(), dialog.selected_camera_profile())
+            # Keep old call shape for existing plugins/automation when the
+            # optional projector mask was not explicitly selected.
+            mask_getter = getattr(dialog, "selected_projector_mask", None)
+            mask = mask_getter() if callable(mask_getter) else None
+            if mask is not None:
+                args += (mask,)
+            self._guard(self.session.capture_camera_scan, *args)
 
 
     def present_calibrated_still(self):
@@ -815,9 +837,30 @@ class MainWindow(QMainWindow):
             return
         source = Path(folder) / "p00.png"
         try:
-            dialog = CornerPicker(source, self)
-        except (OSError, ValueError) as exc:
-            QMessageBox.warning(self, "Camera corner setup", str(exc))
+            profile_name = self.session.project.scan.get("fisheye_profile")
+            if profile_name:
+                from .capture_check import _read_png
+                from .fisheye_rectify import FisheyeRectifier, read_fisheye_profile
+                if (not isinstance(profile_name, str) or not profile_name
+                        or Path(profile_name).name != profile_name
+                        or "/" in profile_name or "\\" in profile_name
+                        or not profile_name.lower().endswith(".json")):
+                    raise ValueError("invalid measured fisheye profile name")
+                profile_path = Path(folder) / profile_name
+                rectifier = FisheyeRectifier(
+                    read_fisheye_profile(profile_path),
+                    balance=self.session.project.scan.get("fisheye_balance", 0.25))
+                raw = _read_png(source, rectifier.size)
+                corrected = rectifier.image(raw)
+                dialog = CornerPicker(
+                    source, self, rectified_frame=corrected)
+            else:
+                dialog = CornerPicker(source, self)
+        except Exception:
+            QMessageBox.warning(
+                self, "Camera corner setup",
+                "CORNER_REFERENCE_REFUSED. Check the capture PNG and measured "
+                "fisheye profile. No device was accessed.")
             return
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.clear_preview()
