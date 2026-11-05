@@ -12,6 +12,7 @@ from .gui_model import Session, SessionError
 from .corner_editor import CornerPicker, ScanSetupDialog
 from .capture_dialog import CaptureDialog
 from .onvif_quick_dialog import OnvifQuickProbeDialog
+from .ui_shell import build_studio
 
 
 class CameraProbeWorker(QThread):
@@ -45,32 +46,8 @@ class MainWindow(QMainWindow):
     def __init__(self, session=None):
         super().__init__()
         self.session = session or Session()
-        central = QWidget()
-        self.setCentralWidget(central)
-        col = QVBoxLayout(central)
-        row = QHBoxLayout()
-        col.addLayout(row)
-        self.step_buttons = []
-        for name, ok in self.session.steps():
-            b = QPushButton(name)
-            b.setEnabled(ok)
-            if not ok:
-                b.setToolTip("not implemented in the clone yet")
-            b.clicked.connect(lambda _=False, n=name: self.run_step(n))
-            row.addWidget(b)
-            self.step_buttons.append(b)
-        self.log_view = QPlainTextEdit(readOnly=True)
-        col.addWidget(self.log_view)
-        self.preview_label = QLabel("CPU preview: choose Calibration > Preview calibrated content")
-        self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview_label.setMinimumHeight(180)
-        col.addWidget(self.preview_label)
-        self._preview_frame = None
-        self._camera_probe_worker = None
-        self.preview_export_button = QPushButton("Save CPU preview as new PNG...")
-        self.preview_export_button.setEnabled(False)
-        self.preview_export_button.clicked.connect(self.save_preview_png)
-        col.addWidget(self.preview_export_button)
+        # M51: premium dark UI shell; calibrated functionality stays in Session.
+        build_studio(self)
         m = self.menuBar().addMenu("&File")
         m.addAction("&Open...", self.open_project)
         m.addAction("&Save", self.save_project)
@@ -94,6 +71,11 @@ class MainWindow(QMainWindow):
         s = self.session
         self.setWindowTitle(f"VIOSO Clone - {s.project.name}{' *' if s.dirty else ''}")
         self.log_view.setPlainText("\n".join(s.log))
+        # A selected folder is not a calibrated rig, never display hardware PASS.
+        if s.project.scan.get("dir"):
+            self.scan_status_label.setText("CAPTURE FOLDER SELECTED")
+        else:
+            self.scan_status_label.setText("NOT VERIFIED")
 
     def _guard(self, fn, *a):
         try:
@@ -107,7 +89,9 @@ class MainWindow(QMainWindow):
         self._preview_frame = None
         self.preview_export_button.setEnabled(False)
         self.preview_label.clear()
-        self.preview_label.setText("CPU preview: choose Calibration > Preview calibrated content")
+        self.preview_label.setText(
+            "NO CALIBRATION PREVIEW\n\n"
+            "Use Calibration > Preview calibrated content after setup.")
 
     def run_step(self, name):
         self.clear_preview()
@@ -226,6 +210,7 @@ class MainWindow(QMainWindow):
             lines.append("No camera or projector was started.")
             message = "\n".join(lines)
             if report["display_layout_gate"] == "OPERATOR_MAPPING_REQUIRED":
+                self.display_status_label.setText("DETECTED · MAPPING REQUIRED")
                 QMessageBox.information(self, "Read-only projector rig", message)
             else:
                 QMessageBox.warning(self, "Read-only projector rig", message)
@@ -331,6 +316,8 @@ class MainWindow(QMainWindow):
             "Physical optical calibration: NOT VERIFIED\n"
             "Projector operation: NONE\n"
             "Camera frame pixels were not saved.")
+        self.camera_status_label.setText(
+            "FRAMES READ · OPTICS NOT VERIFIED")
         if exposure == "FRAME_DATA_PRESENT":
             QMessageBox.information(self, "Camera-only preflight", details)
         else:
@@ -339,6 +326,7 @@ class MainWindow(QMainWindow):
 
     def _camera_probe_failed(self, _message):
         # Never emit backend exceptions, file paths or credential-bearing URLs.
+        self.camera_status_label.setText("PROBE FAILED · NOT VERIFIED")
         self.session._note("camera-only frame probe failed; hardware acceptance NOT_VERIFIED")
         QMessageBox.warning(
             self, "Camera-only preflight",
