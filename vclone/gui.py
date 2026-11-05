@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (QApplication, QDialog, QFileDialog, QHBoxLayout, 
 from .gui_model import Session, SessionError
 from .corner_editor import CornerPicker, ScanSetupDialog
 from .capture_dialog import CaptureDialog
+from .onvif_quick_dialog import OnvifQuickProbeDialog
 
 
 class CameraProbeWorker(QThread):
@@ -21,7 +22,11 @@ class CameraProbeWorker(QThread):
 
     def __init__(self, private_profile, parent=None):
         super().__init__(parent)
-        self._private_profile = str(private_profile)
+        # Preserve one-shot ONVIF credentials in memory only, never render a
+        # dictionary as its string representation or persist it in project log.
+        self._private_profile = (dict(private_profile)
+                                 if isinstance(private_profile, dict)
+                                 else str(private_profile))
 
     def run(self):
         from .camera_frame_probe import camera_frame_probe
@@ -81,6 +86,8 @@ class MainWindow(QMainWindow):
         calib_menu.addAction("Check camera profile (offline)...", self.check_camera_profile)
         calib_menu.addAction("Check Windows projector rig (read-only)...", self.check_display_rig)
         calib_menu.addAction("Probe selected camera (explicit consent)...", self.probe_selected_camera)
+        calib_menu.addAction("Connect ONVIF camera (no saved credentials)...",
+                             self.probe_onvif_camera_once)
         self.refresh()
 
     def refresh(self):
@@ -226,6 +233,43 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Read-only projector rig", str(exc))
         self.refresh()
 
+    def probe_onvif_camera_once(self):
+        """Prompt for a ONE-TIME private-LAN ONVIF probe with no JSON file."""
+        if self._camera_probe_worker is not None:
+            QMessageBox.warning(
+                self, "ONVIF camera-only check", "Another camera probe is running.")
+            return
+        dialog = OnvifQuickProbeDialog(self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            dialog.clear_transient_profile()
+            return
+        profile = dialog.profile()
+        dialog.clear_transient_profile()
+        if not isinstance(profile, dict):
+            return
+        # Double confirmation: the dialog checkbox is required to enable
+        # OK and this independent Yes is required to open a network socket.
+        consent = QMessageBox.question(
+            self, "Confirm ONE ONVIF camera",
+            "Open exactly ONE selected private-LAN ONVIF camera and sample "
+            "6 frames after a 1-frame warmup?\n\n"
+            "No projectors will be operated. No images, credentials, "
+            "network URLs or private source profiles will be saved.\n"
+            "Camera network access occurs only after Yes.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No)
+        if consent != QMessageBox.StandardButton.Yes:
+            return
+        worker = CameraProbeWorker(profile, self)
+        self._camera_probe_worker = worker
+        worker.report_ready.connect(self._camera_probe_ready)
+        worker.failed.connect(self._camera_probe_failed)
+        worker.finished.connect(self._camera_probe_finished)
+        self.session._note(
+            "one-time ONVIF camera-only probe running; projectors untouched")
+        self.refresh()
+        worker.start()
+
     def probe_selected_camera(self):
         """Require a new affirmative click before starting exactly one camera."""
         if self._camera_probe_worker is not None:
@@ -303,6 +347,10 @@ class MainWindow(QMainWindow):
 
     def _camera_probe_finished(self):
         if self._camera_probe_worker is not None:
+            # Drop one-shot source credentials before the Qt object is deleted.
+            # Older path-based probes keep their legacy behavior in tests.
+            if isinstance(getattr(self._camera_probe_worker, "_private_profile", None), dict):
+                self._camera_probe_worker._private_profile = None
             self._camera_probe_worker.deleteLater()
             self._camera_probe_worker = None
 
