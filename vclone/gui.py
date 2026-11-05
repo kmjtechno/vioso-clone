@@ -91,7 +91,7 @@ class MainWindow(QMainWindow):
         self.preview_label.clear()
         self.preview_label.setText(
             "NO CALIBRATION PREVIEW\n\n"
-            "Use Calibration > Preview calibrated content after setup.")
+            "CPU preview: choose Calibration > Preview calibrated content.")
 
     def run_step(self, name):
         self.clear_preview()
