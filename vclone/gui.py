@@ -134,7 +134,11 @@ class MainWindow(QMainWindow):
         dialog = CaptureDialog(self.session.project.scan, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.clear_preview()
-            self._guard(self.session.capture_camera_scan, *dialog.values())
+            # The dialog's existing positional arguments stay unchanged; the
+            # selected private profile is supplied only for this confirmed run.
+            # It is never serialized into the project or GUI log.
+            self._guard(self.session.capture_camera_scan, *dialog.values(),
+                        dialog.selected_camera_profile())
 
     def preview_content(self):
         path, _ = QFileDialog.getOpenFileName(
