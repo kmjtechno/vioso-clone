@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from .gui_model import Session
+from .fisheye_wizard import FisheyeCalibrationDialog
 from .project import Project
 from .wizard_engine import (
     WizardSolveError, capture_fingerprint, inspect_capture,
@@ -261,6 +262,15 @@ class CalibrationWizard(QDialog):
             self._add_studio("Attach existing Gray-code capture folder", "setup_scan",
                              "Import existing scan manifest/images with exact sizes, without projector output.")
         elif stage == "quality":
+            self._action("Measure fisheye lens from checkerboard photos",
+                         self.measure_fisheye,
+                         "Use 12–48 owner-captured checkerboard images. Real OpenCV "
+                         "fisheye fit produces a NEW JSON profile only after strict "
+                         "reprojection/coverage checks; no hardware operation.")
+            self._action("Set measured camera ROI mask PNG", self.attach_camera_mask,
+                         "Optional strict 8-bit grayscale camera mask INSIDE "
+                         "the capture folder; black includes, white excludes pixels. "
+                         "Changing ROI invalidates stale calibration.")
             self._action("Validate THIS project's Gray-code capture", self.run_quality,
                          "Real M25 quality check: all pattern PNGs, contrast, decoded valid area and axis span. "
                          "Read-only CPU worker, not a simulated pass.")
@@ -438,7 +448,94 @@ class CalibrationWizard(QDialog):
         self.close_button.setEnabled(True)
         self.goto(self._index)
 
-    def attach_fisheye(self):
+    def attach_camera_mask(self):
+        """Attach only a measured camera ROI mask; no cameras or projectors."""
+        if self._task is not None:
+            return
+        from .optical_roi import read_camera_mask
+        session = self.studio.session
+        try:
+            root = Path(session.project.scan["dir"])
+            manifest = root / "capture_manifest.json"
+            if (root.is_symlink() or not root.is_dir()
+                    or manifest.is_symlink() or not manifest.is_file()
+                    or not 0 < manifest.stat().st_size <= 16384):
+                raise ValueError("invalid capture")
+            meta = json.loads(manifest.read_text(encoding="utf-8"))
+            dims = meta["camera_size"]
+            if (meta.get("schema") != "kmj.graycode.capture.v1"
+                    or not isinstance(dims, list) or len(dims) != 2
+                    or any(type(n) is not int or not 2 <= n <= 4096 for n in dims)
+                    or dims[0] * dims[1] > 4096 * 2160):
+                raise ValueError("invalid dimensions")
+        except (OSError, ValueError, TypeError, KeyError):
+            QMessageBox.warning(
+                self, "Camera mask", "Configure a bounded real Gray-code capture first.")
+            return
+        choice, _ = QFileDialog.getOpenFileName(
+            self, "Choose binary camera mask INSIDE capture folder",
+            str(root), "Camera Mask (*.png)")
+        if not choice:
+            return
+        try:
+            source = Path(choice)
+            if (source.is_symlink() or source.parent.resolve(strict=True)
+                    != root.resolve(strict=True)):
+                raise ValueError("mask outside capture")
+            included = read_camera_mask(source, (dims[1], dims[0]))
+            if int(included.sum()) < 4:
+                raise ValueError("ROI insufficient")
+        except (ValueError, TypeError, OSError):
+            QMessageBox.warning(
+                self, "Camera mask",
+                "CAMERA_MASK_REFUSED. Use a regular 8-bit black/white PNG "
+                "matching the captured camera resolution, in this capture folder.")
+            return
+        if session.project.scan.get("camera_mask") == source.name:
+            return
+        decision = QMessageBox.question(
+            self, "Change camera scanning ROI",
+            "Apply this verified binary camera ROI mask? This invalidates "
+            "previous corner selection, warp mesh and export. "
+            "Black pixels are INCLUDED and white are EXCLUDED.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No)
+        if decision != QMessageBox.StandardButton.Yes:
+            return
+        session.project.scan["camera_mask"] = source.name
+        for key in ("cam_corners", "content_corners", "camera_size",
+                    "corner_image", "corner_reference_space"):
+            session.project.scan.pop(key, None)
+        session.project.result = {}
+        session.project.steps_done = [
+            name for name in session.project.steps_done
+            if name not in ("Calibrate", "Recalibrate", "Edit", "Edit MRD",
+                            "Export", "RecoverExport")]
+        session.dirty = True
+        session._note(
+            "binary camera ROI configured; stale corners/mesh invalidated; "
+            "physical optics NOT_VERIFIED")
+        self._quality = None
+        self._quality_source = None
+        self.studio.clear_preview()
+        self.studio.refresh()
+        self.refresh_status()
+
+    def measure_fisheye(self):
+        """Real M32 photo-based lens model; never changes owner project silently."""
+        if self._task is not None:
+            return
+        folder = self.studio.session.project.scan.get("dir")
+        dialog = FisheyeCalibrationDialog(folder, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            output = dialog.values()
+            if output:
+                # Explicit final consent for invalidating old distorted-space
+                # corner correspondences is still required by attach_fisheye.
+                self.attach_fisheye(preferred_path=str(output))
+        self.refresh_status()
+
+    def attach_fisheye(self, preferred_path=None):
         """Link only an existing measured profile in this capture directory."""
         if self._task is not None:
             return
@@ -452,9 +549,12 @@ class CalibrationWizard(QDialog):
             QMessageBox.warning(
                 self, "Fisheye profile", "Configure a real camera capture folder first.")
             return
-        choice, _ = QFileDialog.getOpenFileName(
-            self, "Choose measured OpenCV fisheye intrinsics within capture folder",
-            str(root), "Fisheye JSON (*.json)")
+        if preferred_path is None:
+            choice, _ = QFileDialog.getOpenFileName(
+                self, "Choose measured OpenCV fisheye intrinsics within capture folder",
+                str(root), "Fisheye JSON (*.json)")
+        else:
+            choice = preferred_path
         if not choice:
             return
         try:

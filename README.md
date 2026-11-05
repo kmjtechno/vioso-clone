@@ -493,3 +493,17 @@ still preview/export. The capture dialog also supports an optional strict
 clone JSONs. All device access remains locally consented. Software QA does
 not equal physical optical acceptance or proprietary VIOSO 7 parity.
 See [M62 wizard owner guide](docs/M62_GUIDED_CALIBRATION_WIZARD.md).
+
+
+## M63 — Real fisheye intrinsics from checkerboard photos in wizard
+
+The **Scan Quality & Fisheye** page now launches a measured OpenCV M32
+fisheye lens solve from 12–48 diverse real checkerboard photos, with
+bounded inner-corner grid, square size and reprojection RMS controls.
+After explicit consent, an isolated CPU worker verifies the lens and
+creates a NEW profile JSON in the capture folder, matching the captured
+camera resolution. An independent final confirmation attaches the profile
+and invalidates stale corners/mesh. The wizard can also attach an existing
+binary black-include/white-exclude camera ROI mask. No camera or projector
+is operated in these offline steps; physical optical acceptance is still
+NOT VERIFIED. [M63 owner guide](docs/M63_FISHEYE_INTRINSICS_GUI.md).
