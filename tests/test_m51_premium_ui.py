@@ -22,6 +22,7 @@ def _window():
 
 
 def test_shell_has_premium_dark_workspace_and_true_not_verified_states():
+    _qt()  # PySide6 is an optional extra on Linux headless CI.
     from vclone.ui_shell import DARK_THEME
     assert "#0B111C" in DARK_THEME
     assert "#4EDBBE" in DARK_THEME
