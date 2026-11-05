@@ -254,6 +254,9 @@ def build_studio(window):
     nav.addStretch(1)
     nav_scroll.setWidget(nav_container)
     side_col.addWidget(nav_scroll, 1)
+    side_col.addWidget(_action(
+        "Offline Blend Export", window.export_offline_multi_blend,
+        tip="Render 2–8 existing calibrated clone projects to new PNGs; never power projectors"))
     side_col.addWidget(_label("DEVICE CONTROL", "SectionHeading"))
     side_col.addWidget(_label(
         "Camera and projector actions always\nrequire operator confirmation.",
@@ -360,3 +363,4 @@ def build_studio(window):
     col.addLayout(footer)
     window._preview_frame = None
     window._camera_probe_worker = None
+    window._blend_worker = None
