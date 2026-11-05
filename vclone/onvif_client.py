@@ -39,7 +39,12 @@ _PRIVATE_NETWORKS = tuple(ipaddress.ip_network(cidr) for cidr in (
 ))
 
 
-class OnvifError(ValueError):
+# The camera layer imports ONVIF lazily only after CameraSourceError is defined.
+# Preserve the public camera-source error contract for all existing callers.
+from .camera_sources import CameraSourceError
+
+
+class OnvifError(CameraSourceError):
     """Safe public diagnostic; never include the private camera source."""
 
 
