@@ -1,8 +1,8 @@
 # M47 — ONVIF Media1 for CP PLUS and other private-LAN IP cameras
 
 This adds actual ONVIF control-plane communication to the independent clone.
-Previously, type \`onvif_rtsp\` only accepted an RTSP URL already discovered
-by another tool. New type **\`onvif\`** performs Media1 SOAP read-only
+Previously, type `onvif_rtsp` only accepted an RTSP URL already discovered
+by another tool. New type **`onvif`** performs Media1 SOAP read-only
 GetCapabilities -> GetProfiles -> GetStreamUri using the ONVIF device's
 existing account, then passes the returned RTSP URL to the same bounded OpenCV
 FFmpeg capture stack used by the camera-only probe and confirmed Gray-code GUI.
@@ -20,10 +20,10 @@ ONVIF Media1: https://www.onvif.org/specs/srv/media/ONVIF-Media-Service-Spec-v24
 
 ## Private profile — create only on P520, outside source control
 
-In an owner-restricted directory such as \`E:\KMJ\Calibration\private\`,
-create \`cp-plus-onvif.json\`. Do not send this file or its password to chat.
+In an owner-restricted directory such as `E:\KMJ\Calibration\private`,
+create `cp-plus-onvif.json`. Do not send this file or its password to chat.
 
-\`\`\`json
+```json
 {
   "schema": "kmj.camera.source.v1",
   "type": "onvif",
@@ -36,7 +36,7 @@ create \`cp-plus-onvif.json\`. Do not send this file or its password to chat.
   },
   "backend": "ffmpeg"
 }
-\`\`\`
+```
 
 **All network values above are placeholders**, not inferred camera settings.
 The camera must have ONVIF enabled and a valid read-media ONVIF account.
@@ -53,7 +53,7 @@ Media1 video profile**, avoiding an ordinary 1920×1080 panoramic stream.
 A square resolution **does not prove raw optical geometry**. You must
 visually verify the camera is in original/raw 1O mode before measuring
 fisheye intrinsics. On cameras with multiple equally large square profiles
-or no square profile, add \`"profile_token": "ACTUAL_ONVIF_TOKEN"\` inside the
+or no square profile, add `"profile_token": "ACTUAL_ONVIF_TOKEN"` inside the
 private source record; there is no automatic guessing or config-changing.
 This is the opaque token returned by the camera, not the profile name.
 
@@ -81,10 +81,10 @@ This is the opaque token returned by the camera, not the profile name.
    power or physical optical acceptance.
 
 CLI option (same explicit camera-only consent):
-\`\`\`text
+```text
 vclone camera-profile-check E:/KMJ/Calibration/private/cp-plus-onvif.json
 vclone camera-frame-probe E:/KMJ/Calibration/private/cp-plus-onvif.json --confirm-camera --frames 8
-\`\`\`
+```
 
 Never create/paste credential-bearing command-line URLs. No auto-scanning,
 remote login, firmware changes, account creation, ONVIF discovery broadcast
@@ -100,3 +100,13 @@ validation. Real P520 CP PLUS RTSP, camera credentials, ONVIF firmware/auth
 quirks, true raw 1O output, fisheye intrinsics, dual projector optical quality,
 native proprietary VIOSO7 SPS parity and Authenticode signing remain
 **NOT VERIFIED** until operator-held receipts prove otherwise. See issue #67.
+
+
+## M48 optional Media2 (Profile T) service selection
+
+For cameras exposing Media2, add `"media_service": "media2"` **inside the
+private ONVIF `source` object**. Default is `"media1"`. This triggers a
+separate, explicit ONVIF GetServices + Media2 GetProfiles(Type=All) +
+GetStreamUri(Protocol=RTSP) handshake. No silent downgrade, discovery scan
+or camera configuration changes occur. See
+[M48 Media2 operator guide](M48_ONVIF_MEDIA2_PROFILE_T.md).
