@@ -354,3 +354,13 @@ the existing GUI private profile selector and camera-only test, and preserves
 the original USB/RTSP workflow. ONVIF firmware, codecs, raw fisheye
 intrinsics and two-projector optical acceptance require actual P520
 hardware evidence. Read the [M47 ONVIF guide](docs/M47_ONVIF_CPPLUS_MEDIA1.md).
+
+
+## One-time ONVIF camera test without a password JSON file (M49)
+
+The portable GUI provides **Calibration > Connect ONVIF camera (no saved
+credentials)...** for an explicitly selected RFC1918 camera, read-only ONVIF
+account and two-step consent. It reports six frames without saving passwords,
+camera pixels or credentials to a project; projectors remain OFF. Actual CP
+PLUS connectivity and optical acceptance require owner-local hardware QA.
+See [M49 ONVIF quick-probe guide](docs/M49_ONVIF_ONE_SHOT_GUI.md).
