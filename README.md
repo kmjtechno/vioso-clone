@@ -354,3 +354,12 @@ the existing GUI private profile selector and camera-only test, and preserves
 the original USB/RTSP workflow. ONVIF firmware, codecs, raw fisheye
 intrinsics and two-projector optical acceptance require actual P520
 hardware evidence. Read the [M47 ONVIF guide](docs/M47_ONVIF_CPPLUS_MEDIA1.md).
+
+
+## Optional ONVIF Media2 / Profile T stream selection (M48)
+
+For a camera advertising Media2, an owner-only private `type:onvif` source
+may explicitly set `"media_service": "media2"`. The app then uses read-only
+GetServices -> Media2 GetProfiles(Type=All) -> GetStreamUri(Protocol=RTSP),
+keeping Media1 as the unchanged default. No automatic cross-host fallback,
+network scanning or projector activity. [M48 guide](docs/M48_ONVIF_MEDIA2_PROFILE_T.md).
