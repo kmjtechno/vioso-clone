@@ -38,10 +38,10 @@ class CameraProbeWorker(QThread):
         except CameraProbeError as exc:
             # Exception contents, native URLs, account/credentials and host
             # must never traverse Qt threads. Only an allowlisted fixed code.
-            self.failed.emit(exc.code)
+            self.failed.emit("failed: " + exc.code)
             return
         except Exception:
-            self.failed.emit("CAMERA_PROBE_FAILED")
+            self.failed.emit("failed: CAMERA_PROBE_FAILED")
             return
         self.report_ready.emit(receipt)
 
@@ -342,6 +342,7 @@ class MainWindow(QMainWindow):
             "hardware acceptance NOT_VERIFIED")
         QMessageBox.warning(
             self, "Camera-only preflight",
+            "Selected camera could not be probed safely.\n"
             f"Failure stage: {stage}\n"
             f"Diagnostic code: {code}\n\n"
             f"{guidance}\n\n"
