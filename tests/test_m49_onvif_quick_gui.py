@@ -52,6 +52,7 @@ def test_initial_dialog_never_opens_device_or_writes_profile(monkeypatch, tmp_pa
 
 
 def test_offline_input_requires_explicit_consent_and_rejects_public_host(monkeypatch):
+    app()
     from PySide6.QtWidgets import QMessageBox, QDialog
     d = setup_dialog()
     warnings = []
@@ -71,6 +72,7 @@ def test_offline_input_requires_explicit_consent_and_rejects_public_host(monkeyp
 
 
 def test_in_memory_profile_from_user_not_saved_anywhere(tmp_path, monkeypatch):
+    app()
     from PySide6.QtWidgets import QDialog
     d = setup_dialog()
     before = sorted(p.name for p in tmp_path.iterdir())
