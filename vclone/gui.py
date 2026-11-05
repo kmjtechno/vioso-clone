@@ -15,6 +15,8 @@ from .onvif_quick_dialog import OnvifQuickProbeDialog
 from .ui_shell import build_studio
 from .offline_blend_dialog import OfflineBlendDialog
 from .capture_quality_dialog import CaptureQualityDialog
+from .projector_still_gui import (ProjectorStillDialog, ProjectorStillError,
+                                  present_calibrated_still, validate_target)
 
 
 class CameraProbeWorker(QThread):
@@ -153,6 +155,8 @@ class MainWindow(QMainWindow):
                              self.export_offline_multi_blend)
         calib_menu.addAction("Check captured Gray-code quality (offline)…",
                              self.check_capture_quality)
+        calib_menu.addAction("Present calibrated still on projector (confirmed)…",
+                             self.present_calibrated_still)
         self.refresh()
 
     def refresh(self):
@@ -220,6 +224,68 @@ class MainWindow(QMainWindow):
             # It is never serialized into the project or GUI log.
             self._guard(self.session.capture_camera_scan, *dialog.values(),
                         dialog.selected_camera_profile())
+
+
+    def present_calibrated_still(self):
+        """Real, timed projector output, only after exact screen selection and Yes."""
+        if not self.session.project.result.get("mesh"):
+            QMessageBox.warning(
+                self, "Calibrated projector still",
+                "Calibrate this clone project from measured camera images first.")
+            return
+        dialog = ProjectorStillDialog(self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        values = dialog.values()
+        if not values or values[0] is None:
+            return
+        screen, duration_ms = values
+        # First screen check: do not even open a content file for a bad display.
+        # Target dimensions are checked a second time against rendered pixels.
+        target = screen.geometry()
+        source, _ = QFileDialog.getOpenFileName(
+            self, "Choose local content for ONE confirmed projector",
+            "", "Images (*.png *.jpg *.jpeg *.bmp)")
+        if not source:
+            return
+        consent = QMessageBox.question(
+            self, "Final projector presentation consent",
+            "Display ONE already-calibrated still for at most 10 seconds on "
+            "the selected EXTENDED physical projector?\\n\\n"
+            f"Target size: {target.width()} x {target.height()}\\n"
+            "Press Escape to stop. NO automatic camera access, no saved images, "
+            "no optical acceptance or synchronized playback.\\n"
+            "Select No if the projector is OFF, not identified, or mirrored.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No)
+        if consent != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            # Render with existing calibrated CPU mesh; do not mutate owner
+            # project, export pixels to disk or claim physical correctness.
+            frame = self.session.preview_content(source)
+            validate_target(
+                screen, frame, confirmed=True, duration_ms=duration_ms)
+            receipt = present_calibrated_still(
+                frame, screen, confirmed=True, duration_ms=duration_ms)
+        except (ProjectorStillError, SessionError, ValueError, OSError, TypeError):
+            QMessageBox.warning(
+                self, "Calibrated projector still",
+                "PROJECTOR_STILL_REFUSED. Verify calibration, selected extended "
+                "display geometry, native output resolution and local content.")
+            return
+        except Exception:
+            QMessageBox.warning(
+                self, "Calibrated projector still",
+                "PROJECTOR_STILL_FAILED. Check local display availability.")
+            return
+        if receipt.get("projector_operation") != "ONE_OPERATOR_CONFIRMED_TIMED_STILL":
+            QMessageBox.warning(
+                self, "Calibrated projector still", "Projector output not verified.")
+            return
+        self.session._note(
+            "one timed calibrated still presented; physical optics NOT_VERIFIED")
+        self.refresh()
 
     def preview_content(self):
         path, _ = QFileDialog.getOpenFileName(
