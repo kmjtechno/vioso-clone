@@ -29,6 +29,7 @@ def test_all_codes_are_constant_reviewed_and_never_echo_untrusted_values():
     all_output = repr(FAILURE_HINTS)
     assert SECRET not in all_output and "192.168.50.66" not in all_output
     assert all(safe_failure(code)[0] == code for code in FAILURE_HINTS)
+    assert safe_failure("failed: ONVIF_AUTH_REJECTED")[0] == "ONVIF_AUTH_REJECTED"
 
 
 @pytest.mark.parametrize(("message", "expected"), [
@@ -164,6 +165,6 @@ def test_gui_worker_only_emits_reviewed_code_when_native_error_is_unsafe(monkeyp
         raise ValueError("rtsp://operator:" + SECRET + "@192.168.50.66")
     monkeypatch.setattr(module, "camera_frame_probe", opaque)
     worker.run()
-    assert failures == ["CAMERA_PROBE_FAILED"]
+    assert failures == ["failed: CAMERA_PROBE_FAILED"]
     assert SECRET not in repr(failures)
     worker.deleteLater()
