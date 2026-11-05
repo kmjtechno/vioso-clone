@@ -67,3 +67,15 @@ For the user's **1 webcam, 1 CP PLUS fisheye and 2 projectors**: identify local 
 - **No intrinsic-calibration auto-switch** is implemented merely from a camera model name; raw fisheye distortion/undistortion integration must be measured, not guessed.
 - RTSP codecs, GPU decoding, ONVIF authentication, camera-specific API and latency/synchronization quality depend on local equipment/software. These still need hardware evidence.
 - No native VIOSO7 calibration format parity, automatically supported SDK, physical projector certification, frame lock or fully validated commercial release is claimed.
+
+
+## M47 native ONVIF Media1 resolution (new)
+
+New camera profile \`type: "onvif"\` accepts a private source record
+(\`host\`, \`port\`, \`scheme\`, \`username\`, \`password\`, optional
+\`profile_token\`) and performs actual authenticated ONVIF Profile S Media1
+GetCapabilities / GetProfiles / GetStreamUri after a local camera-only
+confirmation. This is different from legacy \`onvif_rtsp\`, which only validates
+an already known \`rtsp://\` address. It never scans the LAN or guesses an
+RTSP route. For CP PLUS setup, examples and limitations, see
+[M47 ONVIF guide](M47_ONVIF_CPPLUS_MEDIA1.md).
