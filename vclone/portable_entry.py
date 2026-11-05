@@ -37,6 +37,7 @@ def portable_main(argv=None):
                 "Check Windows projector rig (read-only)...",
                 "Probe selected camera (explicit consent)...",
                 "Connect ONVIF camera (no saved credentials)...",
+                "Present calibrated still on projector (confirmed)…",
             }
             if not required.issubset(labels):
                 return 3

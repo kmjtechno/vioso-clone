@@ -448,3 +448,14 @@ decoded-valid-pixel coverage and axis span in a background **read-only**
 worker. Optional local mask/fisheye profiles are supported. No cameras,
 projectors or write operations occur. See
 [M58 guide](docs/M58_GUI_GRAYCODE_CAPTURE_QUALITY.md).
+
+
+## M59 — Present calibrated still from Studio on real projector
+
+Calibration Studio now includes a real **Present Still** action for a measured
+clone warp mesh. Select one physically verified secondary Extended desktop,
+confirm twice, and show the CPU-warped content on that projector for 1–10
+seconds (Escape cancels). Primary/mirrored displays and mismatched projector
+resolutions are refused. This is actual timed still presentation, NOT a
+verified VIOSO 7-equivalent calibration or synchronized playback.
+See [M59 operator guide](docs/M59_CONFIRMED_GUI_PROJECTOR_STILL.md).
