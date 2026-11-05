@@ -563,7 +563,7 @@ class CalibrationWizard(QDialog):
             return "Save TWO calibrated JSON projects; run M14 offline blend"
         if mesh and self.studio.session.path is not None and not self.studio.session.dirty:
             return "CLONE PROJECT SAVED · physical QA and native SPS unverified"
-        return "Save validated clone calibration; no hardware acceptance yet"
+        return "NOT VERIFIED · save validated clone calibration first"
 
     def refresh_status(self):
         if self._task is not None:
