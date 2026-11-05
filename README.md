@@ -364,3 +364,12 @@ account and two-step consent. It reports six frames without saving passwords,
 camera pixels or credentials to a project; projectors remain OFF. Actual CP
 PLUS connectivity and optical acceptance require owner-local hardware QA.
 See [M49 ONVIF quick-probe guide](docs/M49_ONVIF_ONE_SHOT_GUI.md).
+
+
+## Memory-only fisheye thumbnail (M50)
+
+The opt-in CP PLUS ONVIF quick probe now displays ONE bounded grayscale
+thumbnail after camera-only consent. This helps the owner distinguish raw 1O
+fisheye from a dewarped panorama without saving camera pixels or enabling
+projectors. It is a visual preflight, not geometric hardware acceptance.
+See [M50 camera thumbnail guide](docs/M50_CAMERA_THUMBNAIL_QA.md).
