@@ -73,6 +73,16 @@ opening a camera/projector or writing files. See
 This is software screening only, not optical calibration certification or
 native VIOSO 7 compatibility.
 
+## Safe full Git history pull on Windows P520 (M43)
+
+The owner P520 has a dirty source checkout and a stale CodeBridge cached
+remote ref. M43 offers an explicit, **non-destructive** Git clone of the
+complete repository history into a new sibling directory, pinned to an
+independently verified GitHub main SHA. Optional `-RunQA` executes full
+source pytest and offscreen GUI self-test in the new private virtualenv.
+This is owner-local and **not** a CodeBridge command-profile bypass. See
+[M43 operator guide](docs/M43_P520_FULL_SOURCE_SYNC.md).
+
 ## Standalone portable Windows GUI alpha (M42)
 
 M42 adds an independently implemented **unsigned**, Python-bundled Windows

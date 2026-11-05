@@ -1,0 +1,70 @@
+name: M43 P520 Full-History Sibling Source QA
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/windows/M43-VIOSO-P520-FULL-SOURCE-AND-QA.ps1
+      - tests/test_m43_p520_fullsource.py
+      - docs/M43_P520_FULL_SOURCE_SYNC.md
+      - .github/workflows/m43-p520-fullsource.yml
+permissions:
+  contents: read
+
+jobs:
+  windows-full-source:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      QT_QPA_PLATFORM: offscreen
+      GIT_TERMINAL_PROMPT: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Local source safety tests
+        run: |
+          python -m pip install --disable-pip-version-check pytest
+          python -m pytest -q tests/test_m43_p520_fullsource.py
+      - name: Native PowerShell parse and plan-only refusal
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $script = Join-Path $PWD 'scripts/windows/M43-VIOSO-P520-FULL-SOURCE-AND-QA.ps1'
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile($script, [ref]$tokens, [ref]$errors) > $null
+          if ($errors.Count -ne 0) { throw 'M43_POWERSHELL_PARSE_INVALID' }
+          $root = Join-Path $env:RUNNER_TEMP 'm43-plan-root'
+          New-Item -ItemType Directory -Path $root -ErrorAction Stop > $null
+          $sha = '0123456789abcdef0123456789abcdef01234567'
+          $out = @(& $script -ExpectedMainSha $sha -WorkspaceRoot $root)
+          if ($out -notcontains 'M43_PLAN_ONLY=PASS_NO_NETWORK_NO_WRITES') { throw 'M43_DEFAULT_PLAN_INVALID' }
+          $target = Join-Path $root ('VIOSO-Clone-FullSource-' + $sha.Substring(0,12))
+          if (Test-Path -LiteralPath $target) { throw 'M43_PLAN_CREATED_DIRECTORY' }
+          $badShaRefused = $false
+          try { & $script -ExpectedMainSha 'BAD_HASH' -WorkspaceRoot $root > $null }
+          catch { $badShaRefused = $true }
+          if (-not $badShaRefused) { throw 'M43_INVALID_HASH_NOT_REFUSED' }
+          New-Item -ItemType Directory -Path $target -ErrorAction Stop > $null
+          $existingRefused = $false
+          try { & $script -ExpectedMainSha $sha -WorkspaceRoot $root > $null }
+          catch { $existingRefused = $_.Exception.Message -like '*M43_TARGET_ALREADY_EXISTS_NO_OVERWRITE*' }
+          if (-not $existingRefused) { throw 'M43_EXISTING_TARGET_NOT_REFUSED' }
+          Write-Output 'M43_NATIVE_PARSER_PLAN_AND_REFUSALS=PASS'
+      - name: Actually clone FULL private Git history into clean sibling and run all tests
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $script = Join-Path $PWD 'scripts/windows/M43-VIOSO-P520-FULL-SOURCE-AND-QA.ps1'
+          $root = Join-Path $env:RUNNER_TEMP 'm43-fullsource-execute'
+          New-Item -ItemType Directory -Path $root -ErrorAction Stop > $null
+          $lines = @(git ls-remote --heads https://github.com/kmjtechno/vioso-clone.git main)
+          if ($LASTEXITCODE -ne 0 -or $lines.Count -ne 1) { throw 'M43_REMOTE_MAIN_CHECK_FAILED' }
+          $sha = ($lines[0] -split '\s+')[0]
+          if ($sha -notmatch '^[0-9a-f]{40}$') { throw 'M43_CI_SHA_INVALID' }
+          & $script -ExpectedMainSha $sha -WorkspaceRoot $root -Execute -RunQA
+          if (-not $?) { throw 'M43_EXECUTION_FAILED' }
+          Write-Output 'M43_HOSTED_WINDOWS_FULL_SOURCE_AND_GUI_QA=PASS'
