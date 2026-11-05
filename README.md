@@ -343,3 +343,14 @@ Do not treat a successful preview as hardware calibration proof. Design, editing
 - SPEC.md and docs/: clean-room specification, limitations and evidence
 
 No source from SPCalibrator64.exe, SPeASY64.dll, license/protector DLLs or third-party protected software is included.
+
+
+## Native ONVIF camera stream negotiation (M47)
+
+M47 adds explicit owner-authorized ONVIF Profile S/Media1
+GetCapabilities -> GetProfiles -> GetStreamUri to obtain an RTSP
+stream from a private LAN CP PLUS/fisheye IP camera. It is available through
+the existing GUI private profile selector and camera-only test, and preserves
+the original USB/RTSP workflow. ONVIF firmware, codecs, raw fisheye
+intrinsics and two-projector optical acceptance require actual P520
+hardware evidence. Read the [M47 ONVIF guide](docs/M47_ONVIF_CPPLUS_MEDIA1.md).
