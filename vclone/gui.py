@@ -281,7 +281,10 @@ class MainWindow(QMainWindow):
         worker.preview_enabled = True
         self._camera_probe_worker = worker
         worker.report_ready.connect(self._camera_probe_ready)
-        worker.preview_ready.connect(self._camera_preview_ready)
+        # Existing camera-only test/adapter workers may be report-only.
+        # The real CameraProbeWorker always advertises the preview signal.
+        if hasattr(worker, "preview_ready"):
+            worker.preview_ready.connect(self._camera_preview_ready)
         worker.failed.connect(self._camera_probe_failed)
         worker.finished.connect(self._camera_probe_finished)
         self.session._note(
