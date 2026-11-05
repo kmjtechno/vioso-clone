@@ -10,13 +10,13 @@ changing the working Media1 default or claiming full Profile T features.
 
 Existing M47 private camera JSON is unchanged. To use **Media2 only**, add:
 
-\`\`\`json
+```json
 "media_service": "media2"
-\`\`\`
+```
 
-inside its existing \`"source"\` object. E.g. on the P520 owner-only profile:
+inside its existing `"source"` object. E.g. on the P520 owner-only profile:
 
-\`\`\`json
+```json
 {
   "schema": "kmj.camera.source.v1",
   "type": "onvif",
@@ -30,7 +30,7 @@ inside its existing \`"source"\` object. E.g. on the P520 owner-only profile:
   },
   "backend": "ffmpeg"
 }
-\`\`\`
+```
 
 The values are **placeholders**, not discovered settings. Never upload
 credentials, IP configurations or a real private profile into Git or chat.
@@ -38,14 +38,14 @@ Use the same GUI **Check camera profile (offline)** and **Probe selected
 camera (explicit consent)** actions. For Media2 the read-only handshake
 on that ONE explicitly selected local camera is:
 
-1. Device \`GetServices(IncludeCapability=false)\`: find exactly one service
-   namespace \`http://www.onvif.org/ver20/media/wsdl\`; reject a missing,
+1. Device `GetServices(IncludeCapability=false)`: find exactly one service
+   namespace `http://www.onvif.org/ver20/media/wsdl`; reject a missing,
    duplicate, remote-host or redirecting XAddr.
-2. Media2 \`GetProfiles(Type=All)\`: parse bounded video-encoder resolution and
+2. Media2 `GetProfiles(Type=All)`: parse bounded video-encoder resolution and
    tokens; by default require one unique largest-square fisheye candidate.
    If the user has already verified the intended raw stream token, its exact
-   \`"profile_token"\` can be specified in the private JSON.
-3. Media2 \`GetStreamUri(Protocol=RTSP, ProfileToken=...)\`: accept only one
+   `"profile_token"` can be specified in the private JSON.
+3. Media2 `GetStreamUri(Protocol=RTSP, ProfileToken=...)`: accept only one
    RTSP/RTSPS URI on the original exact private camera host and pass it to
    the existing OpenCV FFmpeg 4-second open/read timeout backend. Do not
    write credential-bearing URIs or images to logs or receipts.
@@ -53,7 +53,7 @@ on that ONE explicitly selected local camera is:
 There is **no automatic protocol fallback**: if Media2 fails the application
 returns a safe error instead of trying Media1, public hosts, guessed RTSP
 paths or unknown media configurations. Media1 remains the default when
-\`media_service\` is missing or equals \`"media1"\`.
+`media_service` is missing or equals `"media1"`.
 
 A square 2560×2560 video is only a *candidate* for original 1O fisheye,
 not proof of genuine undistorted/raw optical geometry or reliable camera
@@ -70,7 +70,7 @@ no physical CP PLUS camera frames or projected images in CI.
 This does not implement ONVIF Profile T image settings, metadata, event
 subscriptions, TLS certificate provisioning, recording Profile G, ONVIF
 WS-Discovery scanning, PTZ, camera configuration writes, vendor-dewarp mode
-switching, native VIOSO7 license or \`.sps\` parity.
+switching, native VIOSO7 license or `.sps` parity.
 
 **P520 real ONVIF credentials/firmware acceptance, raw 1O image-mode review,
 fisheye geometric fit, two-projector scan/blend and Windows signing remain
