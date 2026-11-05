@@ -150,6 +150,9 @@ def solve_detached(project):
                 "content_corners"):
         if key not in scan:
             raise WizardSolveError("WIZARD_CORNERS_OR_SCAN_REQUIRED")
+    if (scan.get("fisheye_profile") is not None
+            and scan.get("corner_reference_space") != "rectified_fisheye"):
+        raise WizardSolveError("WIZARD_RECTIFIED_CORNERS_REQUIRED")
     receipt = inspect_capture(frozen)
     try:
         run_step(frozen, "Calibrate")
