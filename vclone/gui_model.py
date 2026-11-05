@@ -153,6 +153,94 @@ class Session:
         self.dirty = True
         self._note("camera corners updated: TL, TR, BR, BL (recalibration required)")
 
+
+    def apply_manual_mesh(self, proposed):
+        """Atomically apply bounded user-selected mesh nodes (no hardware I/O).
+
+        The editor owns a detached mesh copy and calls this ONLY after Save.
+        Reject altered topology, unobserved nodes, non-finite values and
+        unexpectedly large edits. Recompute software coverage before commit.
+        """
+        from . import calib
+        from .corners import validate_size
+
+        current = self.project.result.get("mesh")
+        if (not isinstance(current, list) or not 2 <= len(current) <= 65
+                or not isinstance(proposed, list) or len(proposed) != len(current)):
+            raise SessionError("manual mesh requires an existing bounded calibration")
+        columns = len(current[0]) if isinstance(current[0], list) else 0
+        if not 2 <= columns <= 65:
+            raise SessionError("manual warp mesh columns outside bounds")
+        try:
+            content_size = validate_size(self.project.scan["content_size"])
+        except (ValueError, KeyError, TypeError):
+            raise SessionError("calibration content size missing or invalid") from None
+
+        def parse(node):
+            if (node is None or isinstance(node, (list, tuple))
+                    and len(node) == 2 and node[0] is None and node[1] is None):
+                return None
+            if (not isinstance(node, (list, tuple)) or len(node) != 2
+                    or any(isinstance(value, bool) or not isinstance(value, (int, float))
+                           for value in node)):
+                raise SessionError("manual warp node contains invalid coordinates")
+            x, y = float(node[0]), float(node[1])
+            if not np.isfinite(x) or not np.isfinite(y):
+                raise SessionError("manual warp node contains non-finite coordinates")
+            return [x, y]
+
+        committed = []
+        changed = 0
+        for old_row, new_row in zip(current, proposed):
+            if (not isinstance(old_row, list) or not isinstance(new_row, list)
+                    or len(old_row) != columns or len(new_row) != columns):
+                raise SessionError("manual mesh topology cannot change")
+            out_row = []
+            for before, after in zip(old_row, new_row):
+                source, target = parse(before), parse(after)
+                if (source is None) != (target is None):
+                    raise SessionError("unobserved warp nodes cannot be created or deleted")
+                if source is None:
+                    out_row.append([None, None])
+                    continue
+                dx, dy = target[0] - source[0], target[1] - source[1]
+                if abs(dx) > 64 or abs(dy) > 64:
+                    raise SessionError("manual node adjustment exceeds 64 content pixels")
+                if dx or dy:
+                    changed += 1
+                out_row.append(target)
+            committed.append(out_row)
+        if changed == 0:
+            return 0
+
+        grid = np.full((len(committed), columns, 2), np.nan, dtype=np.float64)
+        for i, row in enumerate(committed):
+            for j, node in enumerate(row):
+                if node[0] is not None:
+                    grid[i, j] = node
+        try:
+            coverage = float(calib.coverage_mask(grid, tuple(content_size)).mean())
+        except (ValueError, TypeError, OverflowError):
+            raise SessionError("manual warp coverage could not be validated") from None
+        if not np.isfinite(coverage) or not 0 <= coverage <= 1:
+            raise SessionError("manual warp coverage is invalid")
+        # All validation is done: only now modify the in-memory project.
+        new_result = dict(self.project.result)
+        new_result["mesh"] = committed
+        new_result["coverage"] = coverage
+        new_result["manual_edit_nodes"] = new_result.get("manual_edit_nodes", 0) + changed
+        self.project.result = new_result
+        self.project.steps_done = [
+            stage for stage in self.project.steps_done
+            if stage not in ("Export", "RecoverExport")
+        ]
+        self.project.steps_done.append("Edit")
+        self.dirty = True
+        self._note(
+            f"manual warp adjusted {changed} observed nodes; "
+            "hardware optical acceptance NOT_VERIFIED")
+        return changed
+
     def preview_content(self, image_path):
         """Render a CPU-only frame; no projector/window or project-file mutation."""
         source = Path(image_path)
