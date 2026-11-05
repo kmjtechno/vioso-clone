@@ -459,3 +459,14 @@ seconds (Escape cancels). Primary/mirrored displays and mismatched projector
 resolutions are refused. This is actual timed still presentation, NOT a
 verified VIOSO 7-equivalent calibration or synchronized playback.
 See [M59 operator guide](docs/M59_CONFIRMED_GUI_PROJECTOR_STILL.md).
+
+
+## M60 — Show two-projector verified still blend from Studio
+
+After M14 Offline Blend Export, the Studio **Present Multi Still** action maps
+2–8 SHA-256-verified calibrated PNGs to distinct manually identified
+secondary Extended screens. The owner chooses output duration and confirms
+twice; M15 opens timed still windows on selected projectors. This is actual
+operator-controlled multi-display still presentation, not genlocked or
+synchronized VIOSO 7 video. Hardware optical QA remains mandatory.
+Read the [M60 multi-still operator guide](docs/M60_GUI_VERIFIED_MULTI_STILL.md).
