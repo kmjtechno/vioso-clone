@@ -14,6 +14,7 @@ from .capture_dialog import CaptureDialog
 from .onvif_quick_dialog import OnvifQuickProbeDialog
 from .ui_shell import build_studio
 from .offline_blend_dialog import OfflineBlendDialog
+from .capture_quality_dialog import CaptureQualityDialog
 
 
 class CameraProbeWorker(QThread):
@@ -91,6 +92,38 @@ class OfflineBlendWorker(QThread):
         })
 
 
+class CaptureCheckWorker(QThread):
+    """Offline CPU validation of existing camera captures; no hardware calls."""
+
+    checked = Signal(dict)
+    failed = Signal(str)
+
+    def __init__(self, settings, parent=None):
+        super().__init__(parent)
+        self._settings = dict(settings)
+
+    def run(self):
+        from .capture_check import CaptureCheckError, check_capture
+        try:
+            report = check_capture(**self._settings)
+        except CaptureCheckError:
+            self.failed.emit("CAPTURE_CHECK_REFUSED")
+            return
+        except Exception:
+            self.failed.emit("CAPTURE_CHECK_FAILED")
+            return
+        self.checked.emit({
+            "software_capture_quality": report["software_capture_quality"],
+            "pattern_pairs_checked": int(report["pattern_pairs_checked"]),
+            "decoded_valid_fraction": float(report["decoded_valid_fraction"]),
+            "min_pair_reliable_fraction":
+                float(report["min_pair_reliable_fraction"]),
+            "projector_axis_span_fraction":
+                list(report["projector_axis_span_fraction"]),
+            "hardware_acceptance": "NOT_VERIFIED",
+        })
+
+
 class MainWindow(QMainWindow):
     def __init__(self, session=None):
         super().__init__()
@@ -118,6 +151,8 @@ class MainWindow(QMainWindow):
         self.menuBar().addAction("Workflow Checklist", self.show_workflow_checklist)
         calib_menu.addAction("Export offline multi-projector blend…",
                              self.export_offline_multi_blend)
+        calib_menu.addAction("Check captured Gray-code quality (offline)…",
+                             self.check_capture_quality)
         self.refresh()
 
     def refresh(self):
@@ -242,6 +277,63 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(
                 self, "Offline camera profile", "Camera profile validation refused.")
         self.refresh()
+
+    def check_capture_quality(self):
+        """Read-only CPU screening before calibrating an existing capture."""
+        if self._capture_check_worker is not None:
+            QMessageBox.warning(
+                self, "Capture quality check", "A capture quality check is running.")
+            return
+        dialog = CaptureQualityDialog(self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        settings = dialog.values()
+        if settings is None:
+            return
+        worker = CaptureCheckWorker(settings, parent=self)
+        self._capture_check_worker = worker
+        worker.checked.connect(self._capture_quality_checked)
+        worker.failed.connect(self._capture_quality_failed)
+        worker.finished.connect(self._capture_quality_finished)
+        self.session._note("read-only Gray-code capture quality screening started")
+        self.refresh()
+        worker.start()
+
+    def _capture_quality_checked(self, report):
+        if (not isinstance(report, dict)
+                or report.get("software_capture_quality") != "PASS"
+                or type(report.get("pattern_pairs_checked")) is not int):
+            self._capture_quality_failed("CAPTURE_CHECK_FAILED")
+            return
+        self.session._note(
+            "Gray-code capture software screening PASS; "
+            "physical projector geometry NOT_VERIFIED")
+        QMessageBox.information(
+            self, "Capture quality check",
+            f"Checked {report['pattern_pairs_checked']} Gray-code pairs.\n"
+            f"Reliable decoded camera pixels: "
+            f"{100 * report['decoded_valid_fraction']:.1f}%\n"
+            f"Minimum pair contrast reliability: "
+            f"{100 * report['min_pair_reliable_fraction']:.1f}%\n"
+            "This is software screening only; optical calibration NOT VERIFIED.\n"
+            "No camera, projector, file write or project modification occurred.")
+        self.refresh()
+
+    def _capture_quality_failed(self, _code):
+        self.session._note(
+            "Gray-code capture software check FAILED; no projector operation")
+        QMessageBox.warning(
+            self, "Capture quality check",
+            "CAPTURE_CHECK_REFUSED. The capture manifest, pattern PNGs, "
+            "contrast or decoded coordinate coverage did not meet the "
+            "specified screening criteria. No camera or projector was used.")
+        self.refresh()
+
+    def _capture_quality_finished(self):
+        if self._capture_check_worker is not None:
+            self._capture_check_worker._settings = None
+            self._capture_check_worker.deleteLater()
+            self._capture_check_worker = None
 
     def export_offline_multi_blend(self):
         """Output CPU PNGs and manifest only, never physical projection."""
@@ -511,6 +603,13 @@ class MainWindow(QMainWindow):
             QMessageBox.information(
                 self, "Offline blend export",
                 "CPU export is running; close the application after it finishes.")
+            event.ignore()
+            return
+        capture = self._capture_check_worker
+        if capture is not None and capture.isRunning():
+            QMessageBox.information(
+                self, "Capture quality check",
+                "Offline capture validation is running; close after it finishes.")
             event.ignore()
             return
         super().closeEvent(event)

@@ -438,3 +438,13 @@ fallback, redirects, endpoint changes or projector operation. This preserves
 M52 discovery, M54 legacy camera login behavior and M56 thumbnail review.
 No synthetic or source CI proves CP PLUS hardware compatibility.
 See [Media2 owner integration guide](docs/ONVIF_MEDIA2_GUI_INTEGRATION.md).
+
+
+## M58 — Gray-code capture quality check in GUI
+
+The Calibration Studio now offers **Check Capture Quality**. Select a real
+existing clone capture folder; M25 inspects manifest/pattern PNGs, contrast,
+decoded-valid-pixel coverage and axis span in a background **read-only**
+worker. Optional local mask/fisheye profiles are supported. No cameras,
+projectors or write operations occur. See
+[M58 guide](docs/M58_GUI_GRAYCODE_CAPTURE_QUALITY.md).
