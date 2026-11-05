@@ -341,6 +341,8 @@ def _choose_profile(profiles, requested):
         legacy = [p for p in profiles if p[0] == "MediaProfile00000"]
         if len(legacy) == 1:
             return legacy[0][0]
+        if len(legacy) > 1:
+            raise OnvifError("ambiguous ONVIF legacy main-stream profile; set profile_token locally")
         raise OnvifError("no raw-square ONVIF profile; set profile_token locally")
     largest = max(p[1] for p in square)
     preferred = [p for p in square if p[1] == largest]
