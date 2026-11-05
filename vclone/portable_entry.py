@@ -39,6 +39,7 @@ def portable_main(argv=None):
                 "Connect ONVIF camera (no saved credentials)...",
                 "Present calibrated still on projector (confirmed)…",
                 "Present verified multi-projector blend (confirmed)…",
+                "Edit calibrated warp mesh (offline)…",
             }
             if not required.issubset(labels):
                 return 3
