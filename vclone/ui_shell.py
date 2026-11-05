@@ -307,6 +307,9 @@ def build_studio(window):
     actions.addWidget(_action(
         "Preview Content", window.preview_content,
         tip="Preview already configured calibration locally"))
+    actions.addWidget(_action(
+        "Workflow Checklist", window.show_workflow_checklist,
+        tip="Read-only metadata and next software steps; no devices accessed"))
     actions.addStretch(1)
     col.addLayout(actions)
 

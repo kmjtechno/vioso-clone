@@ -75,7 +75,8 @@ def _summarize_frame(frame):
     return (width, height), small, (mean, black, white, sharpness)
 
 
-def camera_frame_probe(camera_profile_path, *, confirmed=False, frames=8, warmup=1):
+def camera_frame_probe(camera_profile_path, *, confirmed=False, frames=8, warmup=1,
+                       return_preview=False):
     """Sample one explicitly chosen camera; no filesystem writes or projection.
 
     The report is suitable for preflight screening while projectors are OFF.
@@ -83,6 +84,8 @@ def camera_frame_probe(camera_profile_path, *, confirmed=False, frames=8, warmup
     correction, nor does an RTSP profile imply camera model compatibility.
     """
     _settings(confirmed=confirmed, frames=frames, warmup=warmup)
+    if type(return_preview) is not bool:
+        raise CameraProbeError("preview opt-in must be boolean")
     try:
         # A GUI one-shot ONVIF probe passes an in-memory private profile.
         # Legacy CLI and GUI can still choose an existing local JSON file.
@@ -167,7 +170,7 @@ def camera_frame_probe(camera_profile_path, *, confirmed=False, frames=8, warmup
     else:
         signal = "FRAME_DATA_PRESENT"
     width, height = shapes[0]
-    return {
+    report = {
         "schema": "kmj.camera.frame-probe.v1",
         "read_only_no_capture_files": True,
         "projector_operation": "NONE",
@@ -188,3 +191,13 @@ def camera_frame_probe(camera_profile_path, *, confirmed=False, frames=8, warmup
         "hardware_optical_acceptance": "NOT_VERIFIED",
         "native_vioso_sps_compatible": False,
     }
+    if return_preview:
+        # The local owner opted in only AFTER camera consent. One bounded
+        # grayscale copy is sent to the GUI; it is never part of a receipt,
+        # project, photo file or persistent CPU content preview.
+        if previous is None or previous.ndim != 2 or previous.dtype != np.uint8:
+            raise CameraProbeError(
+                "camera frame format or pixel budget invalid",
+                code="CAMERA_FRAME_FORMAT_INVALID")
+        return report, previous.copy()
+    return report
