@@ -190,6 +190,11 @@ class FisheyeCalibrationDialog(QDialog):
     def start_measurement(self):
         if self._worker is not None or not self.confirm.isChecked():
             return
+        if self.cols.value() * self.rows.value() > 150:
+            QMessageBox.warning(
+                self, "Fisheye lens fit",
+                "Checkerboard has too many inner corners (maximum 150).")
+            return
         try:
             self._target, self._expected_size = validate_destination(
                 self._capture_folder,
