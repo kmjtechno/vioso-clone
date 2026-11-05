@@ -17,6 +17,7 @@ import ipaddress
 import secrets
 import xml.etree.ElementTree as ET
 from urllib.parse import quote, urlsplit, urlunsplit
+from urllib.error import HTTPError
 from urllib.request import (
     build_opener, HTTPDigestAuthHandler, HTTPPasswordMgrWithDefaultRealm,
     HTTPRedirectHandler, ProxyHandler, Request,
@@ -30,6 +31,7 @@ SCHEMA = "http://www.onvif.org/ver10/schema"
 WSSE = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"
 WSU = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"
 DIGEST_TYPE = WSSE.replace("wssecurity-secext-1.0.xsd", "username-token-profile-1.0") + "#PasswordDigest"
+TEXT_TYPE = WSSE.replace("wssecurity-secext-1.0.xsd", "username-token-profile-1.0") + "#PasswordText"
 NONCE_TYPE = WSSE.replace("wssecurity-secext-1.0.xsd", "soap-message-security-1.0") + "#Base64Binary"
 MAX_XML_BYTES = 128 * 1024
 MAX_PROFILES = 16
@@ -114,7 +116,13 @@ def _same_host_url(url, source, *, schemes):
     return parsed
 
 
-def _soap(action, username, password, inner_xml):
+def _soap(action, username, password, inner_xml, *, password_style="digest"):
+    """Only explicitly requested PasswordText over a caller-verified HTTPS URL.
+
+    Defaults to standard WSSE PasswordDigest even for existing callers.
+    """
+    if password_style not in ("digest", "text"):
+        raise OnvifError("unsupported ONVIF authentication mode")
     header = ""
     if username or password:
         nonce = secrets.token_bytes(20)
@@ -123,12 +131,14 @@ def _soap(action, username, password, inner_xml):
             nonce + created.encode("utf-8") + password.encode("utf-8")
         ).digest()).decode("ascii")
         token = base64.b64encode(nonce).decode("ascii")
-        # Security header is regenerated for each authenticated call.
+        # Even PasswordText uses a fresh nonce and UTC Created timestamp.
+        mode_type = DIGEST_TYPE if password_style == "digest" else TEXT_TYPE
+        password_value = digest if password_style == "digest" else escape(password)
         header = (
             '<wsse:Security soap:mustUnderstand="1">'
             '<wsse:UsernameToken>'
             '<wsse:Username>' + escape(username) + '</wsse:Username>'
-            '<wsse:Password Type="' + DIGEST_TYPE + '">' + digest + '</wsse:Password>'
+            '<wsse:Password Type="' + mode_type + '">' + password_value + '</wsse:Password>'
             '<wsse:Nonce EncodingType="' + NONCE_TYPE + '">' + token + '</wsse:Nonce>'
             '<wsu:Created>' + created + '</wsu:Created>'
             '</wsse:UsernameToken></wsse:Security>'
@@ -162,35 +172,107 @@ def _parse(payload):
     return body
 
 
-def _post(url, source, action, xml):
-    # HTTPS uses Python's default VERIFIED system certificate roots. No
-    # trust-all flag; HTTP is restricted to explicitly configured RFC1918 LAN.
-    _same_host_url(url, source, schemes={source["scheme"]})
-    # No HTTP Digest handler is added for credential-free devices. If such
-    # firmware requires authentication it fails closed rather than guessing.
-    handlers = [ProxyHandler({}), _NoRedirect()]
-    if source["username"] and source["password"]:
-        password_mgr = HTTPPasswordMgrWithDefaultRealm()
-        password_mgr.add_password(
-            None, url, source["username"], source["password"])
-        handlers.append(HTTPDigestAuthHandler(password_mgr))
-    opener = build_opener(*handlers)
-    request = Request(
-        url, data=_soap(action, source["username"], source["password"], xml),
-        headers={"Content-Type": "application/soap+xml; charset=utf-8; action=\""
-                 + action + "\"", "Accept": "application/soap+xml"},
-        method="POST",
-    )
+class _AuthenticationRefused(Exception):
+    """Internal control flow only. Never expose untrusted camera responses."""
+
+
+def _auth_fault(payload):
+    """Accept only explicit ONVIF/WS-Security authentication SOAP faults."""
+    if not isinstance(payload, bytes) or len(payload) > MAX_XML_BYTES:
+        return False
+    upper = payload.upper()
+    if b"<!DOCTYPE" in upper or b"<!ENTITY" in upper:
+        return False
     try:
-        with opener.open(request, timeout=4) as response:
-            # Read only a bounded payload even for a misbehaving local server.
-            data = response.read(MAX_XML_BYTES + 1)
-    except OnvifError:
-        raise
-    except Exception:
-        # urllib errors can carry the original credentialed request URL.
-        raise OnvifError("ONVIF selected camera could not complete media request") from None
-    return _parse(data)
+        root = ET.fromstring(payload)
+    except ET.ParseError:
+        return False
+    if root.tag != "{" + SOAP + "}Envelope":
+        return False
+    body = root.find("{" + SOAP + "}Body")
+    fault = body.find("{" + SOAP + "}Fault") if body is not None else None
+    if fault is None:
+        return False
+    # Compare only short known fault-code tokens, never log a firmware
+    # Reason/Text or a credential-bearing XML payload.
+    allowed = {"NotAuthorized", "FailedAuthentication", "InvalidSecurity"}
+    for node in fault.iter():
+        if node.tag.rsplit("}", 1)[-1] not in ("Value", "Subcode"):
+            continue
+        text = (node.text or "").strip().rsplit(":", 1)[-1]
+        if text in allowed:
+            return True
+    return False
+
+
+def _post(url, source, action, xml):
+    """Authenticated ONVIF read-only media request with bounded HTTPS retry.
+
+    V2.5 physical logs demonstrated a subset of CP PLUS firmware rejecting
+    WSSE PasswordDigest and accepting PasswordText + Nonce + Created over
+    HTTPS. Retry once only for explicit auth rejection on certificate-
+    verified HTTPS, using existing owner-supplied credentials.
+    """
+    _same_host_url(url, source, schemes={source["scheme"]})
+    has_login = bool(source["username"] and source["password"])
+
+    def send(password_style):
+        handlers = [ProxyHandler({}), _NoRedirect()]
+        if has_login:
+            password_mgr = HTTPPasswordMgrWithDefaultRealm()
+            password_mgr.add_password(
+                None, url, source["username"], source["password"])
+            handlers.append(HTTPDigestAuthHandler(password_mgr))
+        opener = build_opener(*handlers)
+        request = Request(
+            url,
+            data=_soap(action, source["username"], source["password"], xml,
+                       password_style=password_style),
+            headers={
+                "Content-Type": 'application/soap+xml; charset=utf-8; action="' +
+                                action + '"',
+                "Accept": "application/soap+xml",
+            },
+            method="POST",
+        )
+        try:
+            with opener.open(request, timeout=4) as response:
+                data = response.read(MAX_XML_BYTES + 1)
+        except HTTPError as exc:
+            try:
+                data = exc.read(MAX_XML_BYTES + 1)
+            except Exception:
+                data = b""
+            # 401/403 HTTP auth rejection, or 500 carrying a recognized
+            # SOAP authentication fault. Never retry other server failures.
+            if exc.code in (401, 403) or (exc.code == 500 and _auth_fault(data)):
+                raise _AuthenticationRefused() from None
+            raise OnvifError(
+                "ONVIF selected camera could not complete media request") from None
+        except OnvifError:
+            raise
+        except Exception:
+            # urllib and native SSL exceptions may contain private URLs,
+            # hostnames and credentials. Never propagate their text or chain.
+            raise OnvifError(
+                "ONVIF selected camera could not complete media request") from None
+        if _auth_fault(data):
+            raise _AuthenticationRefused()
+        return _parse(data)
+
+    try:
+        return send("digest")
+    except _AuthenticationRefused:
+        if source["scheme"] != "https" or not has_login:
+            raise OnvifError(
+                "ONVIF selected camera rejected authentication") from None
+        # Never downgrade to PasswordText on HTTP, on redirect, a foreign
+        # endpoint, failed TLS validation, or malformed/non-auth SOAP.
+        try:
+            return send("text")
+        except _AuthenticationRefused:
+            raise OnvifError(
+                "ONVIF selected camera rejected authentication") from None
 
 
 def _service_url(source):
