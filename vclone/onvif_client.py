@@ -1,12 +1,12 @@
-"""Minimal owner-opt-in ONVIF Media1 reader for a single private-LAN camera.
+"""Owner-opt-in ONVIF Media1 and explicit Media2 reader for one LAN camera.
 
 Supports ONVIF GetCapabilities -> GetProfiles -> GetStreamUri using WS-Security
 UsernameToken (PasswordDigest) and HTTP Digest challenge. No WS-Discovery,
 LAN scanning, arbitrary URLs, service redirects, camera configuration changes,
 files or telemetry. Every error deliberately omits credentials/host/RTSP path.
 
-Profile S Media1 only; Profile T Media2, TLS trust and firmware quirks require
-separate empirical qualification. The returned URI is for local OpenCV only.
+Profile S Media1 is the default. Optional Media2 negotiates read-only Profile T
+RTSP only; firmware support and physical optics remain unverified.
 """
 from __future__ import annotations
 
@@ -27,6 +27,7 @@ from xml.sax.saxutils import escape
 SOAP = "http://www.w3.org/2003/05/soap-envelope"
 DEVICE = "http://www.onvif.org/ver10/device/wsdl"
 MEDIA = "http://www.onvif.org/ver10/media/wsdl"
+MEDIA2 = "http://www.onvif.org/ver20/media/wsdl"
 SCHEMA = "http://www.onvif.org/ver10/schema"
 WSSE = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"
 WSU = "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd"
@@ -60,7 +61,7 @@ def validate_source(source):
     if not isinstance(source, dict):
         raise OnvifError("ONVIF source must be a private endpoint record")
     keys = {"host", "port", "scheme", "username", "password"}
-    if not keys.issubset(source) or set(source) - keys - {"profile_token", "device_path"}:
+    if not keys.issubset(source) or set(source) - keys - {"profile_token", "device_path", "media_service"}:
         raise OnvifError("invalid ONVIF endpoint profile keys")
     try:
         address = ipaddress.IPv4Address(source["host"])
@@ -81,6 +82,9 @@ def validate_source(source):
     # Never silently try a half-configured account.
     if bool(source["username"]) != bool(source["password"]):
         raise OnvifError("ONVIF username and password must both be supplied or blank")
+    media_service = source.get("media_service", "media1")
+    if type(media_service) is not str or media_service not in ("media1", "media2"):
+        raise OnvifError("unsupported ONVIF media service selection")
     path = source.get("device_path", DEFAULT_DEVICE_PATH)
     if (not isinstance(path, str) or not 1 <= len(path) <= 256
             or not path.startswith("/") or "//" in path
@@ -146,7 +150,7 @@ def _soap(action, username, password, inner_xml, *, password_style="digest"):
     envelope = (
         '<?xml version="1.0" encoding="utf-8"?>'
         '<soap:Envelope xmlns:soap="' + SOAP + '" xmlns:tds="' + DEVICE +
-        '" xmlns:trt="' + MEDIA + '" xmlns:tt="' + SCHEMA +
+        '" xmlns:trt="' + MEDIA + '" xmlns:tr2="' + MEDIA2 + '" xmlns:tt="' + SCHEMA +
         '" xmlns:wsse="' + WSSE + '" xmlns:wsu="' + WSU + '">'
         '<soap:Header>' + header + '</soap:Header><soap:Body>'
         + inner_xml + '</soap:Body></soap:Envelope>'
@@ -293,6 +297,57 @@ def _capabilities_xaddr(body, source):
     return value
 
 
+
+def _media2_service_xaddr(body, source):
+    """Require exactly one advertised Media2 endpoint on the same private host."""
+    matches = []
+    for node in body.findall(".//{" + DEVICE + "}Service"):
+        if node.findtext("{" + DEVICE + "}Namespace") != MEDIA2:
+            continue
+        value = node.findtext("{" + DEVICE + "}XAddr")
+        if not value:
+            raise OnvifError("ONVIF Media2 endpoint missing")
+        _same_host_url(value, source, schemes={source["scheme"]})
+        matches.append(value)
+    if len(matches) != 1:
+        raise OnvifError("ONVIF Media2 service not uniquely advertised")
+    return matches[0]
+
+
+def _media2_profiles(body):
+    """Accept only bounded encoder-backed profiles, without guessed streams."""
+    profiles = body.findall(".//{" + MEDIA2 + "}Profiles")
+    if not 1 <= len(profiles) <= MAX_PROFILES:
+        raise OnvifError("ONVIF Media2 profile list missing or too large")
+    candidates = []
+    for node in profiles:
+        token = node.attrib.get("token")
+        if (not token or len(token) > 128
+                or any(ord(c) < 33 or ord(c) > 126 for c in token)):
+            continue
+        encoder = node.find(".//{" + MEDIA2 + "}VideoEncoder")
+        if encoder is None:
+            continue
+        resolution = encoder.find(".//{" + SCHEMA + "}Resolution")
+        if resolution is None:
+            resolution = encoder.find(".//{" + MEDIA2 + "}Resolution")
+        if resolution is None:
+            continue
+        try:
+            width = int(resolution.findtext("{" + SCHEMA + "}Width")
+                        or resolution.findtext("{" + MEDIA2 + "}Width") or "")
+            height = int(resolution.findtext("{" + SCHEMA + "}Height")
+                         or resolution.findtext("{" + MEDIA2 + "}Height") or "")
+        except ValueError:
+            continue
+        if (64 <= width <= 4096 and 64 <= height <= 4096
+                and width * height <= 4096 * 2160):
+            candidates.append((token, width, height))
+    if not candidates:
+        raise OnvifError("ONVIF Media2 has no bounded video encoder profile")
+    return candidates
+
+
 def _profiles(body):
     profiles = body.findall(".//{" + MEDIA + "}Profiles")
     if not 1 <= len(profiles) <= MAX_PROFILES:
@@ -352,31 +407,60 @@ def _choose_profile(profiles, requested):
 
 
 def resolve_stream_uri(source):
-    """ONVIF Media1 read-only URI resolution for one selected private camera.
+    """ONVIF Media1 default or explicitly selected Media2 read-only RTSP.
 
     Called only after the higher-level user-approved camera probe/capture.
     No ONVIF camera configuration methods are issued.
     """
     source = validate_source(source)
     device_url = _service_url(source)
-    body = _post(
-        device_url, source, DEVICE + "/GetCapabilities",
-        "<tds:GetCapabilities><tds:Category>Media</tds:Category></tds:GetCapabilities>",
-    )
-    media_url = _capabilities_xaddr(body, source)
-    body = _post(media_url, source, MEDIA + "/GetProfiles", "<trt:GetProfiles/>")
-    token = _choose_profile(_profiles(body), source.get("profile_token"))
-    xml = (
-        "<trt:GetStreamUri><trt:StreamSetup><tt:Stream>RTP-Unicast</tt:Stream>"
-        "<tt:Transport><tt:Protocol>RTSP</tt:Protocol></tt:Transport>"
-        "</trt:StreamSetup><trt:ProfileToken>" + escape(token) +
-        "</trt:ProfileToken></trt:GetStreamUri>"
-    )
-    body = _post(media_url, source, MEDIA + "/GetStreamUri", xml)
-    uri = body.findtext(".//{" + SCHEMA + "}Uri")
-    if not uri:
-        # Media2 is deliberately not guessed as Media1.
-        raise OnvifError("ONVIF Media1 did not return an RTSP stream URI")
+    if source.get("media_service", "media1") == "media2":
+        # Only the explicitly selected read-only Media2 handshake is used.
+        # No cross-service fallback, firmware configuration or network scan.
+        services = _post(
+            device_url, source, DEVICE + "/GetServices",
+            "<tds:GetServices><tds:IncludeCapability>false</tds:IncludeCapability>"
+            "</tds:GetServices>",
+        )
+        media_url = _media2_service_xaddr(services, source)
+        profiles = _post(
+            media_url, source, MEDIA2 + "/GetProfiles",
+            "<tr2:GetProfiles><tr2:Type>All</tr2:Type></tr2:GetProfiles>",
+        )
+        candidates = _media2_profiles(profiles)
+        requested = source.get("profile_token")
+        if requested is None and not any(w == h for _, w, h in candidates):
+            raise OnvifError("no raw-square Media2 profile; set profile_token locally")
+        token = _choose_profile(candidates, requested)
+        stream_request = (
+            "<tr2:GetStreamUri><tr2:Protocol>RTSP</tr2:Protocol>"
+            "<tr2:ProfileToken>" + escape(token) + "</tr2:ProfileToken>"
+            "</tr2:GetStreamUri>"
+        )
+        response = _post(media_url, source, MEDIA2 + "/GetStreamUri",
+                         stream_request)
+        uri = response.findtext(".//{" + MEDIA2 + "}Uri")
+        if not uri:
+            raise OnvifError("ONVIF Media2 did not return an RTSP stream URI")
+    else:
+        body = _post(
+            device_url, source, DEVICE + "/GetCapabilities",
+            "<tds:GetCapabilities><tds:Category>Media</tds:Category></tds:GetCapabilities>",
+        )
+        media_url = _capabilities_xaddr(body, source)
+        body = _post(media_url, source, MEDIA + "/GetProfiles", "<trt:GetProfiles/>")
+        token = _choose_profile(_profiles(body), source.get("profile_token"))
+        xml = (
+            "<trt:GetStreamUri><trt:StreamSetup><tt:Stream>RTP-Unicast</tt:Stream>"
+            "<tt:Transport><tt:Protocol>RTSP</tt:Protocol></tt:Transport>"
+            "</trt:StreamSetup><trt:ProfileToken>" + escape(token) +
+            "</trt:ProfileToken></trt:GetStreamUri>"
+        )
+        body = _post(media_url, source, MEDIA + "/GetStreamUri", xml)
+        uri = body.findtext(".//{" + SCHEMA + "}Uri")
+        if not uri:
+            # Media2 is deliberately not guessed as Media1.
+            raise OnvifError("ONVIF Media1 did not return an RTSP stream URI")
     parsed = _same_host_url(uri.strip(), source, schemes={"rtsp", "rtsps"})
     # For an anonymous camera, preserve the camera-provided same-host stream
     # URI WITHOUT inserting an empty user:password@ into the RTSP authority.
