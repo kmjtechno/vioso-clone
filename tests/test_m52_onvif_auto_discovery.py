@@ -154,7 +154,7 @@ def test_discovery_reply_accepts_only_same_host_private_services():
         "device_path": "/onvif/device_service",
     }]
     assert discovery._parse_reply(reply(), "192.168.6.24") == []
-    assert discovery._parse_reply(reply(host="8.8.8.8"), "8.8.8.8") == []
+    assert discovery._parse_reply(reply(host="8.8.8.8"), "192.168.6.23") == []
     with pytest.raises(discovery.DiscoveryError):
         discovery._parse_reply(reply(), "8.8.8.8")
 
