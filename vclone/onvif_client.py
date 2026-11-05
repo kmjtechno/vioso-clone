@@ -57,7 +57,7 @@ def validate_source(source):
         raise OnvifError("invalid ONVIF endpoint profile keys")
     try:
         address = ipaddress.IPv4Address(source["host"])
-    except (ValueError, AddressValueError, TypeError, KeyError):
+    except (ValueError, TypeError, KeyError):
         raise OnvifError("ONVIF endpoint must use private IPv4") from None
     if not any(address in network for network in _PRIVATE_NETWORKS):
         raise OnvifError("ONVIF endpoint must be on the private LAN")
