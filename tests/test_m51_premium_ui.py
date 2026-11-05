@@ -62,7 +62,7 @@ def test_legacy_session_steps_and_menus_preserved():
         assert len(menus) >= 2
         assert menus[0].title().replace("&", "") == "File"
         assert menus[1].title().replace("&", "") == "Calibration"
-        names = [action.text() for action in menus[1].actions()]
+        names = [action.text().replace("&", "") for action in menus[1].actions()]
         assert "Connect ONVIF camera (no saved credentials)..." in names
         assert "Check Windows projector rig (read-only)..." in names
         assert "Capture Gray-code from camera..." in names
