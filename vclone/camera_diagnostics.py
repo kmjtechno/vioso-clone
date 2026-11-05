@@ -75,6 +75,11 @@ FAILURE_HINTS = {
 
 def safe_failure(code):
     """Return a fixed tuple even for attacker-controlled exception messages."""
+    # Legacy GUI worker's 'failed' signal keeps its historical text while
+    # carrying a fixed, reviewed stage identifier. Native exception text is
+    # never parsed into user-visible diagnostics.
+    if isinstance(code, str) and code.startswith("failed: "):
+        code = code[len("failed: "):]
     if not isinstance(code, str) or code not in FAILURE_HINTS:
         code = "CAMERA_PROBE_FAILED"
     stage, guidance = FAILURE_HINTS[code]
