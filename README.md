@@ -407,3 +407,13 @@ safe next steps; no IP, RTSP URI, username or password is logged. The window
 title includes `M55 camera diagnostics` so the executable version can be
 identified. This is not evidence of hardware completion. See
 [M55 camera diagnostic guide](docs/M55_ONVIF_CAMERA_STAGE_DIAGNOSTICS.md).
+
+
+## M56 — Camera visual check and guided calibration checklist
+
+A camera-only ONVIF probe may show one local grayscale, non-exportable
+fisheye thumbnail after the existing two confirmations. Camera pixels,
+credentials and stream URLs are not saved. The GUI now includes an offline
+Workflow Checklist showing eight calibrated software steps and actual
+metadata readiness, without claiming hardware acceptance or powering any
+projector. See [M56 guide](docs/M56_VISUAL_CAMERA_AND_WORKFLOW.md).
