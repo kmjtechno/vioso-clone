@@ -183,3 +183,31 @@ def test_studio_button_calls_exact_confirmed_multi_engine(monkeypatch):
         assert not w.session.dirty
     finally:
         w.close()
+
+
+def test_prior_single_output_hot_unplug_refused_without_content_or_window(monkeypatch):
+    app()
+    from vclone import gui
+    class Gone:
+        def geometry(self):
+            raise RuntimeError("wrapped C++ QScreen object has been deleted")
+    class Selected:
+        def __init__(self, *_): pass
+        def exec(self): return QDialog.DialogCode.Accepted
+        def values(self): return Gone(), 3000
+    monkeypatch.setattr(gui, "ProjectorStillDialog", Selected)
+    monkeypatch.setattr(QFileDialog, "getOpenFileName",
+                        lambda *_: (_ for _ in ()).throw(
+                            AssertionError("cannot open input after unplug")))
+    errors = []
+    monkeypatch.setattr(QMessageBox, "warning",
+                        lambda *_args: errors.append(_args[-1]))
+    w = gui.MainWindow()
+    w.session.project.result["mesh"] = [[[0.0, 0.0]]]
+    try:
+        w.present_calibrated_still()
+        assert len(errors) == 1
+        assert "disconnected" in errors[0]
+        assert not w.session.dirty
+    finally:
+        w.close()
