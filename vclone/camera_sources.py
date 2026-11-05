@@ -174,10 +174,13 @@ def open_camera(profile, *, sdk_adapters=None):
             # READ_ONLY ONVIF Media1 negotiation happens only when an already
             # confirmed camera probe/capture explicitly opens this profile.
             # The only emitted video URL is for this selected private camera.
-            from .onvif_client import OnvifError, resolve_stream_uri
+            from .onvif_client import resolve_stream_uri
             try:
                 value = resolve_stream_uri(data["source"])
-            except OnvifError:
+            except Exception:
+                # urllib, native XML parsers and optional video backends can
+                # embed the camera host or password in an exception. Never
+                # echo arbitrary failure messages from this trust boundary.
                 raise CameraSourceError(
                     "selected private ONVIF media stream could not be resolved") from None
         else:
