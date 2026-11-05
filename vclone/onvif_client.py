@@ -34,7 +34,7 @@ DIGEST_TYPE = WSSE.replace("wssecurity-secext-1.0.xsd", "username-token-profile-
 TEXT_TYPE = WSSE.replace("wssecurity-secext-1.0.xsd", "username-token-profile-1.0") + "#PasswordText"
 NONCE_TYPE = WSSE.replace("wssecurity-secext-1.0.xsd", "soap-message-security-1.0") + "#Base64Binary"
 MAX_XML_BYTES = 128 * 1024
-MAX_PROFILES = 16
+MAX_PROFILES = 64
 DEFAULT_DEVICE_PATH = "/onvif/device_service"
 _PRIVATE_NETWORKS = tuple(ipaddress.ip_network(cidr) for cidr in (
     "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
@@ -304,15 +304,21 @@ def _profiles(body):
                 or any(ord(c) < 33 or ord(c) > 126 for c in token)):
             continue
         res = node.find(".//{" + SCHEMA + "}VideoEncoderConfiguration/{" + SCHEMA + "}Resolution")
-        if res is None:
-            continue
-        try:
-            w = int(res.findtext("{" + SCHEMA + "}Width") or "")
-            h = int(res.findtext("{" + SCHEMA + "}Height") or "")
-        except ValueError:
-            continue
-        if 64 <= w <= 4096 and 64 <= h <= 4096 and w * h <= 4096 * 2160:
-            choices.append((token, w, h))
+        # Older CP PLUS firmware can advertise a valid MediaProfile token
+        # but omit encoder dimensions in GetProfiles (legacy V2.5 observed
+        # this). Preserve it for EXPLICIT selection or narrow main-stream
+        # fallback; never label missing dimensions as a raw fisheye mode.
+        w = h = 0
+        if res is not None:
+            try:
+                w = int(res.findtext("{" + SCHEMA + "}Width") or "")
+                h = int(res.findtext("{" + SCHEMA + "}Height") or "")
+            except ValueError:
+                w = h = 0
+        if not (64 <= w <= 4096 and 64 <= h <= 4096
+                and w * h <= 4096 * 2160):
+            w = h = 0
+        choices.append((token, w, h))
     if not choices:
         raise OnvifError("ONVIF camera has no supported bounded video profile")
     return choices
@@ -328,6 +334,13 @@ def _choose_profile(profiles, requested):
     # Require exactly one largest square resolution (often 2560x2560 on CP+).
     square = [p for p in profiles if p[1] == p[2]]
     if not square:
+        # V2.5 evidence: CP PLUS returned 27 Media1 entries, most without
+        # dimensions, but the real MainStream token MediaProfile00000
+        # yielded a stream URI. This is a connection-only candidate and
+        # never attests raw 1O fisheye optical geometry.
+        legacy = [p for p in profiles if p[0] == "MediaProfile00000"]
+        if len(legacy) == 1:
+            return legacy[0][0]
         raise OnvifError("no raw-square ONVIF profile; set profile_token locally")
     largest = max(p[1] for p in square)
     preferred = [p for p in square if p[1] == largest]
