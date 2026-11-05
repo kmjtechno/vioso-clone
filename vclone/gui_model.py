@@ -121,7 +121,8 @@ class Session:
         new_scan.update(dir=str(source), proj_size=[pwidth, pheight],
                         content_size=[cwidth, cheight])
         if changed:
-            for key in ("cam_corners", "content_corners", "camera_size", "corner_image"):
+            for key in ("cam_corners", "content_corners", "camera_size",
+                        "corner_image", "corner_reference_space"):
                 new_scan.pop(key, None)
             self.project.result = {}
             self.project.steps_done = [
@@ -144,6 +145,8 @@ class Session:
         new_scan["content_corners"] = content_corners((cw, ch))
         new_scan["camera_size"] = list(validate_size(image_size))
         new_scan["corner_image"] = "p00.png"
+        new_scan["corner_reference_space"] = (
+            "rectified_fisheye" if new_scan.get("fisheye_profile") else "raw")
         self.project.scan = new_scan
         self.project.result = {}  # previous calibration is no longer valid
         self.project.steps_done = [
