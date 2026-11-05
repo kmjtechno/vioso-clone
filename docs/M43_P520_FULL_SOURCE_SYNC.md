@@ -1,7 +1,8 @@
 # M43 — Pull FULL Git source history onto the owner P520, no clobber
 
-The latest source was verified at GitHub `main` SHA
-`d149598f90094240261167396ef73f82eb08ad4e` when M43 was authored.
+Always independently verify the current 40-character GitHub `main` SHA
+before owner-local execution. M45 corrects the default destination after
+the owner explicitly chose a nested `FullSource` folder.
 The owner P520 is online through CodeBridge, but its existing branch
 `feat/sps-container-m5` contains modified files and untracked REA research.
 **CodeBridge cannot fetch remotely**: the opt-in
@@ -15,17 +16,21 @@ smuggle an unapproved Git fetch.
 A script is available at
 `scripts/windows/M43-VIOSO-P520-FULL-SOURCE-AND-QA.ps1`. Review it before
 running. The file can be downloaded via ChatGPT or the authenticated GitHub
-repository. It requires an existing `E:\KMJ\Codex` workspace, Git for
-Windows and, for optional QA, an installed Python 3 interpreter.
+repository. It requires the already-created directory
+\`E:\KMJ\Codex\VIOSO-Clone\FullSource\`, Git for Windows and, for
+optional QA, an installed Python 3 interpreter.
 
 - The default invocation **without** `-Execute` only validates and prints
   the proposed target. No network or file modifications.
 - An explicitly approved `-Execute` verifies GitHub remote main's
   **exact 40-character SHA** before clone. Any moved SHA fails closed.
-- The clone is a fresh sibling
-  `E:\KMJ\Codex\VIOSO-Clone-FullSource-<first12SHA>`. If the destination
-  exists (including partial previous executions), it refuses overwrite.
+- The clone is a fresh **child of the owner-selected project folder**:
+  \`E:\KMJ\Codex\VIOSO-Clone\FullSource\VIOSO-Clone-FullSource-<first12SHA>\`.
+  If the destination exists (including a partial prior attempt), refuse to
+  overwrite it.
   No `reset`, `clean`, `pull` or mutation of the original dirty checkout.
+- Git remote operations run from a separate, verified regular OS temporary
+  directory, outside the original checkout's inherited local Git settings.
 - It uses `git clone --no-checkout` **without** `--depth` or
   `--single-branch`, verifying that the Git database is **not shallow** and
   that detached HEAD equals the verified SHA. This retains remote branch
@@ -42,7 +47,7 @@ Example *after obtaining and reviewing the script*, from the directory
 containing the script, with the exact SHA independently verified as current:
 
 ```powershell
-.\M43-VIOSO-P520-FULL-SOURCE-AND-QA.ps1 -ExpectedMainSha d149598f90094240261167396ef73f82eb08ad4e -Execute -RunQA
+.\M43-VIOSO-P520-FULL-SOURCE-AND-QA.ps1 -ExpectedMainSha <CURRENT_VERIFIED_MAIN_40_HEX> -Execute -RunQA
 ```
 
 If local PowerShell prevents an unsigned script, respect the owner's
