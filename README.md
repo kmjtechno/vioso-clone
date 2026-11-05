@@ -374,3 +374,14 @@ navigation, camera/projector/calibration status cards, calibrated preview,
 real ONVIF/display/capture actions and session activity. No fake hardware
 PASS; all physical acceptance gates remain separate. See the
 [M51 design and testing guide](docs/M51_PREMIUM_CALIBRATION_STUDIO.md).
+
+
+## Auto-detect ONVIF camera without login (M52)
+
+The CP PLUS camera setup now supports one-click **Auto Detect ONVIF Camera
+(no ID/password)**. It uses bounded local WS-Discovery to identify a private
+camera and fills its device-service endpoint. The owner can probe its ONVIF
+Media1/RTSP stream with both username and password blank; on devices that
+require authentication, login remains optional and explicit. Camera-only
+consent is still required. No projectors are started, and no passwords are
+guessed or saved. [M52 guide](docs/M52_ONVIF_AUTO_DISCOVERY_NO_PASSWORD.md).
