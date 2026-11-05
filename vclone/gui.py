@@ -15,6 +15,8 @@ from .onvif_quick_dialog import OnvifQuickProbeDialog
 from .ui_shell import build_studio
 from .offline_blend_dialog import OfflineBlendDialog
 from .capture_quality_dialog import CaptureQualityDialog
+from .multi_still_gui import (MultiStillDialog, MultiStillError,
+                              load_sizes, present_verified_blend)
 from .projector_still_gui import (ProjectorStillDialog, ProjectorStillError,
                                   present_calibrated_still, validate_target)
 
@@ -157,6 +159,8 @@ class MainWindow(QMainWindow):
                              self.check_capture_quality)
         calib_menu.addAction("Present calibrated still on projector (confirmed)…",
                              self.present_calibrated_still)
+        calib_menu.addAction("Present verified multi-projector blend (confirmed)…",
+                             self.present_multi_still)
         self.refresh()
 
     def refresh(self):
@@ -400,6 +404,66 @@ class MainWindow(QMainWindow):
             self._capture_check_worker._settings = None
             self._capture_check_worker.deleteLater()
             self._capture_check_worker = None
+
+
+    def present_multi_still(self):
+        """Present SHA-verified M14 images on distinct selected Extended screens."""
+        folder = QFileDialog.getExistingDirectory(
+            self, "Choose existing verified offline blend export directory")
+        if not folder:
+            return
+        try:
+            sizes = load_sizes(folder)
+        except Exception:
+            QMessageBox.warning(
+                self, "Multi-projector still",
+                "MULTI_STILL_MANIFEST_REFUSED. Select a completed, "
+                "SHA-256-verified M14 blend export folder.")
+            return
+        try:
+            dialog = MultiStillDialog(sizes, self)
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+            values = dialog.values()
+            if not values:
+                return
+            screens, duration_ms = values
+        except (MultiStillError, RuntimeError, ValueError, TypeError):
+            QMessageBox.warning(
+                self, "Multi-projector still",
+                "MULTI_STILL_MAPPING_REFUSED. Verify two distinct secondary "
+                "extended displays with matching PNG resolutions.")
+            return
+        consent = QMessageBox.question(
+            self, "Final multi-projector output consent",
+            f"Display {len(screens)} checksum-verified calibrated still images "
+            "on the selected PHYSICAL Extended projectors for at most "
+            f"{duration_ms // 1000} seconds?\\n"
+            "Projectors must already be ON and individually mapped. "
+            "No camera access or synchronization is implied. "
+            "Select No if displays are off, mirrored or unidentified.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No)
+        if consent != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            receipt = present_verified_blend(
+                folder, screens, confirmed=True, duration_ms=duration_ms)
+        except Exception:
+            QMessageBox.warning(
+                self, "Multi-projector still",
+                "MULTI_STILL_OUTPUT_FAILED. Check checksum manifest, "
+                "Windows Extended screens, projector sizes and output availability.")
+            return
+        if receipt.get("projectors_attempted") != len(screens):
+            QMessageBox.warning(
+                self, "Multi-projector still",
+                "Multi-display output could not be independently verified.")
+            return
+        self.session._note(
+            f"multi-projector verified still attempted on {len(screens)} "
+            "screens; physical seam and synchronization NOT_VERIFIED")
+        self.refresh()
 
     def export_offline_multi_blend(self):
         """Output CPU PNGs and manifest only, never physical projection."""
