@@ -831,9 +831,30 @@ class MainWindow(QMainWindow):
             return
         source = Path(folder) / "p00.png"
         try:
-            dialog = CornerPicker(source, self)
-        except (OSError, ValueError) as exc:
-            QMessageBox.warning(self, "Camera corner setup", str(exc))
+            profile_name = self.session.project.scan.get("fisheye_profile")
+            if profile_name:
+                from .capture_check import _read_png
+                from .fisheye_rectify import FisheyeRectifier, read_fisheye_profile
+                if (not isinstance(profile_name, str) or not profile_name
+                        or Path(profile_name).name != profile_name
+                        or "/" in profile_name or "\\" in profile_name
+                        or not profile_name.lower().endswith(".json")):
+                    raise ValueError("invalid measured fisheye profile name")
+                profile_path = Path(folder) / profile_name
+                rectifier = FisheyeRectifier(
+                    read_fisheye_profile(profile_path),
+                    balance=self.session.project.scan.get("fisheye_balance", 0.25))
+                raw = _read_png(source, rectifier.size)
+                corrected = rectifier.image(raw)
+                dialog = CornerPicker(
+                    source, self, rectified_frame=corrected)
+            else:
+                dialog = CornerPicker(source, self)
+        except Exception:
+            QMessageBox.warning(
+                self, "Camera corner setup",
+                "CORNER_REFERENCE_REFUSED. Check the capture PNG and measured "
+                "fisheye profile. No device was accessed.")
             return
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.clear_preview()
