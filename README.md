@@ -83,6 +83,15 @@ source pytest and offscreen GUI self-test in the new private virtualenv.
 This is owner-local and **not** a CodeBridge command-profile bypass. See
 [M43 operator guide](docs/M43_P520_FULL_SOURCE_SYNC.md).
 
+## Private RTSP/fisheye camera in GUI Gray-code capture (M44)
+
+The independent capture engine already supported owner-managed USB, RTSP,
+ONVIF-resolved RTSP and MJPEG profiles, but the GUI previously offered only
+a USB index. M44 adds an opt-in private source-profile selector to the GUI
+capture dialog, with offline validation, explicit projector confirmation and
+credential-redacted errors. Camera/projector hardware acceptance remains
+separate. See [M44 GUI camera capture guide](docs/M44_GUI_PRIVATE_CAMERA_CAPTURE.md).
+
 ## Standalone portable Windows GUI alpha (M42)
 
 M42 adds an independently implemented **unsigned**, Python-bundled Windows
