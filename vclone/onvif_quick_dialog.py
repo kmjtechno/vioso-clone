@@ -17,7 +17,7 @@ from .camera_sources import validate_profile, SCHEMA
 
 
 class OnvifQuickProbeDialog(QDialog):
-    """Read-only ONVIF Media1 connection setup; no on-disk credential store."""
+    """Explicit Media1 or Media2 setup without an on-disk credential store."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -49,6 +49,9 @@ class OnvifQuickProbeDialog(QDialog):
         self.scheme = QComboBox()
         self.scheme.addItems(["http", "https"])
         self.scheme.currentTextChanged.connect(self._scheme_changed)
+        self.media_service = QComboBox()
+        self.media_service.addItem("Media1 / Profile S (default)", "media1")
+        self.media_service.addItem("Media2 / Profile T (explicit)", "media2")
         self.username = QLineEdit()
         self.username.setMaxLength(128)
         self.password = QLineEdit()
@@ -61,6 +64,7 @@ class OnvifQuickProbeDialog(QDialog):
             ("ONVIF camera IPv4", self.host),
             ("ONVIF service port", self.port),
             ("Control protocol", self.scheme),
+            ("Read-only ONVIF media service", self.media_service),
             ("ONVIF username (optional)", self.username),
             ("ONVIF password (optional)", self.password),
             ("Optional raw fisheye profile token", self.token),
@@ -137,6 +141,8 @@ class OnvifQuickProbeDialog(QDialog):
         }
         if self.token.text().strip():
             source["profile_token"] = self.token.text().strip()
+        if self.media_service.currentData() == "media2":
+            source["media_service"] = "media2"
         found = self._detected_endpoint
         if (found and source["host"] == found["host"]
                 and source["port"] == found["port"]
