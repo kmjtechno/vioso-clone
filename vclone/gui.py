@@ -245,9 +245,14 @@ class MainWindow(QMainWindow):
             # The dialog's existing positional arguments stay unchanged; the
             # selected private profile is supplied only for this confirmed run.
             # It is never serialized into the project or GUI log.
-            self._guard(self.session.capture_camera_scan, *dialog.values(),
-                        dialog.selected_camera_profile(),
-                        dialog.selected_projector_mask())
+            args = (*dialog.values(), dialog.selected_camera_profile())
+            # Keep old call shape for existing plugins/automation when the
+            # optional projector mask was not explicitly selected.
+            mask_getter = getattr(dialog, "selected_projector_mask", None)
+            mask = mask_getter() if callable(mask_getter) else None
+            if mask is not None:
+                args += (mask,)
+            self._guard(self.session.capture_camera_scan, *args)
 
 
     def present_calibrated_still(self):
