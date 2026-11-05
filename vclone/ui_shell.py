@@ -255,6 +255,10 @@ def build_studio(window):
     nav_scroll.setWidget(nav_container)
     side_col.addWidget(nav_scroll, 1)
     side_col.addWidget(_action(
+        "Full Calibration Wizard", window.open_calibration_wizard,
+        primary=True,
+        tip="Guided camera > scan > measured quality > auto warp > edit > blend > export"))
+    side_col.addWidget(_action(
         "Offline Blend Export", window.export_offline_multi_blend,
         tip="Render 2–8 existing calibrated clone projects to new PNGs; never power projectors"))
     side_col.addWidget(_action(
