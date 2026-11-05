@@ -13,6 +13,7 @@ from .corner_editor import CornerPicker, ScanSetupDialog
 from .capture_dialog import CaptureDialog
 from .onvif_quick_dialog import OnvifQuickProbeDialog
 from .ui_shell import build_studio
+from .offline_blend_dialog import OfflineBlendDialog
 
 
 class CameraProbeWorker(QThread):
@@ -60,6 +61,36 @@ class CameraProbeWorker(QThread):
             self.preview_ready.emit(frame_image)
 
 
+class OfflineBlendWorker(QThread):
+    """CPU-only export; no camera or display API is available in this worker."""
+
+    succeeded = Signal(dict)
+    failed = Signal(str)
+
+    def __init__(self, project_paths, content_path, output_dir, gamma, parent=None):
+        super().__init__(parent)
+        self._input = (list(project_paths), content_path, output_dir, float(gamma))
+
+    def run(self):
+        from .multi_output import export_multi
+        from .project import Project
+        try:
+            project_paths, content_path, output_dir, gamma = self._input
+            projects = [Project.load(path) for path in project_paths]
+            report = export_multi(
+                projects, content_path, output_dir, gamma=gamma)
+        except Exception:
+            # Paths/project names and native image/backend errors are private.
+            self.failed.emit("OFFLINE_BLEND_EXPORT_FAILED")
+            return
+        self.succeeded.emit({
+            "projectors": len(report["projectors"]),
+            "overlap_fraction": float(report["overlap_fraction"]),
+            "uncovered_fraction": float(report["uncovered_fraction"]),
+            "hardware_acceptance": "NOT_VERIFIED",
+        })
+
+
 class MainWindow(QMainWindow):
     def __init__(self, session=None):
         super().__init__()
@@ -85,6 +116,8 @@ class MainWindow(QMainWindow):
                              self.probe_onvif_camera_once)
         # Purely local project metadata summary; no network or screen output.
         self.menuBar().addAction("Workflow Checklist", self.show_workflow_checklist)
+        calib_menu.addAction("Export offline multi-projector blend…",
+                             self.export_offline_multi_blend)
         self.refresh()
 
     def refresh(self):
@@ -209,6 +242,61 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(
                 self, "Offline camera profile", "Camera profile validation refused.")
         self.refresh()
+
+    def export_offline_multi_blend(self):
+        """Output CPU PNGs and manifest only, never physical projection."""
+        if self._blend_worker is not None:
+            QMessageBox.warning(
+                self, "Offline blend export", "An offline export is already running.")
+            return
+        dialog = OfflineBlendDialog(self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        values = dialog.values()
+        if values is None:
+            return
+        worker = OfflineBlendWorker(*values, parent=self)
+        self._blend_worker = worker
+        worker.succeeded.connect(self._offline_blend_succeeded)
+        worker.failed.connect(self._offline_blend_failed)
+        worker.finished.connect(self._offline_blend_finished)
+        self.session._note("CPU-only blend export running; no projector output")
+        self.refresh()
+        worker.start()
+
+    def _offline_blend_succeeded(self, report):
+        if (not isinstance(report, dict)
+                or not isinstance(report.get("projectors"), int)
+                or not 2 <= report["projectors"] <= 8):
+            self._offline_blend_failed("OFFLINE_BLEND_EXPORT_FAILED")
+            return
+        self.session._note(
+            f"offline blend PNG/manifest created for {report['projectors']} "
+            "projectors; hardware acceptance NOT_VERIFIED")
+        QMessageBox.information(
+            self, "Offline blend export",
+            f"Generated {report['projectors']} per-projector PNG files "
+            "plus checked manifest in your selected NEW folder.\n"
+            "Software-only: no projector was activated.\n"
+            "Physical edge blend, color and seam are NOT VERIFIED.")
+        self.refresh()
+
+    def _offline_blend_failed(self, _code):
+        # Never surface project locations, content paths or native errors.
+        self.session._note(
+            "offline blend export failed; projector operation NONE")
+        QMessageBox.warning(
+            self, "Offline blend export",
+            "OFFLINE_BLEND_EXPORT_FAILED. Check that both clone projects "
+            "have calibrated warp meshes matching the selected content image, "
+            "and choose a NEW writable output folder. No projector was used.")
+        self.refresh()
+
+    def _offline_blend_finished(self):
+        if self._blend_worker is not None:
+            self._blend_worker._input = None
+            self._blend_worker.deleteLater()
+            self._blend_worker = None
 
     def show_workflow_checklist(self):
         """Read-only software feature readiness; never opens camera/projector."""
@@ -416,6 +504,13 @@ class MainWindow(QMainWindow):
             QMessageBox.information(
                 self, "Camera-only preflight",
                 "Camera frame probe is running. Close the application after it finishes.")
+            event.ignore()
+            return
+        blend = self._blend_worker
+        if blend is not None and blend.isRunning():
+            QMessageBox.information(
+                self, "Offline blend export",
+                "CPU export is running; close the application after it finishes.")
             event.ignore()
             return
         super().closeEvent(event)
