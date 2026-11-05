@@ -53,7 +53,7 @@ def test_no_blank_project_can_claim_warp_calibration():
     studio, wizard = fresh()
     try:
         wizard.goto(6)
-        assert "Run strict quality check" in [
+        assert "Run strict quality check + automatic warp solve" in [
             b.text() for b in wizard.findChildren(QPushButton)
         ]
         assert "quality-gated" in wizard.stage_status("solve").lower()
