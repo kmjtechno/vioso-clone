@@ -250,3 +250,7 @@ def test_camera_opencv_probe_redacts_credential_url_on_native_exception(monkeypa
         cs.open_camera(profile())
     assert PASS not in str(err.value)
     assert SOURCE["host"] not in str(err.value)
+
+
+# M52: both empty strings form a valid ANONYMOUS camera; the above
+# single-key overrides remain invalid because they produce a mismatched pair.

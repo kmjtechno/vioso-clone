@@ -58,7 +58,7 @@ def validate_source(source):
     if not isinstance(source, dict):
         raise OnvifError("ONVIF source must be a private endpoint record")
     keys = {"host", "port", "scheme", "username", "password"}
-    if not keys.issubset(source) or set(source) - keys - {"profile_token"}:
+    if not keys.issubset(source) or set(source) - keys - {"profile_token", "device_path"}:
         raise OnvifError("invalid ONVIF endpoint profile keys")
     try:
         address = ipaddress.IPv4Address(source["host"])
@@ -72,9 +72,20 @@ def validate_source(source):
         raise OnvifError("ONVIF control port must be in 1..65535")
     for field, length in (("username", 128), ("password", 512)):
         value = source[field]
-        if (not isinstance(value, str) or not 1 <= len(value) <= length
+        if (not isinstance(value, str) or len(value) > length
                 or any(ord(c) < 32 or ord(c) == 127 for c in value)):
             raise OnvifError("invalid private ONVIF credential") from None
+    # Anonymous ONVIF on owner LAN is valid only when BOTH are blank.
+    # Never silently try a half-configured account.
+    if bool(source["username"]) != bool(source["password"]):
+        raise OnvifError("ONVIF username and password must both be supplied or blank")
+    path = source.get("device_path", DEFAULT_DEVICE_PATH)
+    if (not isinstance(path, str) or not 1 <= len(path) <= 256
+            or not path.startswith("/") or "//" in path
+            or ".." in path.split("/") or "\\" in path
+            or any(ord(c) <= 32 or ord(c) == 127 for c in path)
+            or "?" in path or "#" in path):
+        raise OnvifError("ONVIF discovered device path invalid")
     token = source.get("profile_token")
     if token is not None and (
         not isinstance(token, str)
@@ -104,22 +115,24 @@ def _same_host_url(url, source, *, schemes):
 
 
 def _soap(action, username, password, inner_xml):
-    nonce = secrets.token_bytes(20)
-    created = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
-    digest = base64.b64encode(hashlib.sha1(
-        nonce + created.encode("utf-8") + password.encode("utf-8")
-    ).digest()).decode("ascii")
-    token = base64.b64encode(nonce).decode("ascii")
-    # Security header is regenerated for each call; never persisted.
-    header = (
-        '<wsse:Security soap:mustUnderstand="1">'
-        '<wsse:UsernameToken>'
-        '<wsse:Username>' + escape(username) + '</wsse:Username>'
-        '<wsse:Password Type="' + DIGEST_TYPE + '">' + digest + '</wsse:Password>'
-        '<wsse:Nonce EncodingType="' + NONCE_TYPE + '">' + token + '</wsse:Nonce>'
-        '<wsu:Created>' + created + '</wsu:Created>'
-        '</wsse:UsernameToken></wsse:Security>'
-    )
+    header = ""
+    if username or password:
+        nonce = secrets.token_bytes(20)
+        created = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+        digest = base64.b64encode(hashlib.sha1(
+            nonce + created.encode("utf-8") + password.encode("utf-8")
+        ).digest()).decode("ascii")
+        token = base64.b64encode(nonce).decode("ascii")
+        # Security header is regenerated for each authenticated call.
+        header = (
+            '<wsse:Security soap:mustUnderstand="1">'
+            '<wsse:UsernameToken>'
+            '<wsse:Username>' + escape(username) + '</wsse:Username>'
+            '<wsse:Password Type="' + DIGEST_TYPE + '">' + digest + '</wsse:Password>'
+            '<wsse:Nonce EncodingType="' + NONCE_TYPE + '">' + token + '</wsse:Nonce>'
+            '<wsu:Created>' + created + '</wsu:Created>'
+            '</wsse:UsernameToken></wsse:Security>'
+        )
     envelope = (
         '<?xml version="1.0" encoding="utf-8"?>'
         '<soap:Envelope xmlns:soap="' + SOAP + '" xmlns:tds="' + DEVICE +
@@ -153,13 +166,15 @@ def _post(url, source, action, xml):
     # HTTPS uses Python's default VERIFIED system certificate roots. No
     # trust-all flag; HTTP is restricted to explicitly configured RFC1918 LAN.
     _same_host_url(url, source, schemes={source["scheme"]})
-    password_mgr = HTTPPasswordMgrWithDefaultRealm()
-    password_mgr.add_password(
-        None, url, source["username"], source["password"])
-    # Explicit private LAN control traffic must NOT inherit HTTP(S)_PROXY
-    # environment settings from the desktop or build runner.
-    opener = build_opener(ProxyHandler({}), _NoRedirect(),
-                          HTTPDigestAuthHandler(password_mgr))
+    # No HTTP Digest handler is added for credential-free devices. If such
+    # firmware requires authentication it fails closed rather than guessing.
+    handlers = [ProxyHandler({}), _NoRedirect()]
+    if source["username"] and source["password"]:
+        password_mgr = HTTPPasswordMgrWithDefaultRealm()
+        password_mgr.add_password(
+            None, url, source["username"], source["password"])
+        handlers.append(HTTPDigestAuthHandler(password_mgr))
+    opener = build_opener(*handlers)
     request = Request(
         url, data=_soap(action, source["username"], source["password"], xml),
         headers={"Content-Type": "application/soap+xml; charset=utf-8; action=\""
@@ -181,7 +196,7 @@ def _post(url, source, action, xml):
 def _service_url(source):
     return (
         source["scheme"] + "://" + source["host"] + ":" +
-        str(source["port"]) + DEFAULT_DEVICE_PATH
+        str(source["port"]) + source.get("device_path", DEFAULT_DEVICE_PATH)
     )
 
 
@@ -266,9 +281,13 @@ def resolve_stream_uri(source):
         # Media2 is deliberately not guessed as Media1.
         raise OnvifError("ONVIF Media1 did not return an RTSP stream URI")
     parsed = _same_host_url(uri.strip(), source, schemes={"rtsp", "rtsps"})
+    # For an anonymous camera, preserve the camera-provided same-host stream
+    # URI WITHOUT inserting an empty user:password@ into the RTSP authority.
+    if not source["username"]:
+        return urlunsplit((parsed.scheme, parsed.netloc,
+                           parsed.path, parsed.query, ""))
     user = quote(source["username"], safe="")
     password = quote(source["password"], safe="")
-    # Only the OpenCV process receives these credentials. Never return them
-    # through profile_status, camera preflight JSON or success receipts.
+    # Only OpenCV receives these credentials, never project logs or reports.
     netloc = user + ":" + password + "@" + parsed.netloc
     return urlunsplit((parsed.scheme, netloc, parsed.path, parsed.query, ""))
