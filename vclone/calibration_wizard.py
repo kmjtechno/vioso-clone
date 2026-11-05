@@ -490,7 +490,7 @@ class CalibrationWizard(QDialog):
             return
         session.project.scan["fisheye_profile"] = name
         for key in ("cam_corners", "content_corners", "camera_size",
-                    "corner_image"):
+                    "corner_image", "corner_reference_space"):
             session.project.scan.pop(key, None)
         session.project.result = {}
         session.project.steps_done = [
