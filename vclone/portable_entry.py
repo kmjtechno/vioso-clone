@@ -44,6 +44,14 @@ def portable_main(argv=None):
                 return 4
             if window.session.dirty:
                 return 5
+            # M51: assert the ACTUAL PyInstaller-frozen UI loaded the
+            # professional workspace, not the old placeholder button row.
+            if window.centralWidget().objectName() != "StudioRoot":
+                return 6
+            if (window.camera_status_label.text() != "NOT TESTED"
+                    or window.display_status_label.text() != "NOT MAPPED"
+                    or window.scan_status_label.text() != "NOT VERIFIED"):
+                return 7
             return 0
         finally:
             window.close()
