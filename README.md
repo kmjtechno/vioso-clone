@@ -427,3 +427,14 @@ choose gamma; opt in to render CPU-only projector PNGs and SHA-256 manifest
 without starting hardware. Existing M14 blend weights, project validation
 and output limits are reused. Physical seam acceptance is not implied.
 See [M57 GUI guide](docs/M57_GUI_OFFLINE_MULTIPROJECTOR_EXPORT.md).
+
+
+## Optional ONVIF Media2 integration
+
+Calibration Studio offers an explicit Media1/Profile S (unchanged default) or
+Media2/Profile T read-only stream selector for one owner-approved private camera.
+Media2 negotiates GetServices, GetProfiles and GetStreamUri without silent
+fallback, redirects, endpoint changes or projector operation. This preserves
+M52 discovery, M54 legacy camera login behavior and M56 thumbnail review.
+No synthetic or source CI proves CP PLUS hardware compatibility.
+See [Media2 owner integration guide](docs/ONVIF_MEDIA2_GUI_INTEGRATION.md).
