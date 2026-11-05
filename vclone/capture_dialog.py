@@ -46,6 +46,15 @@ class CaptureDialog(QDialog):
         self.cw = _spin(2, 4096, int(content[0]))
         self.ch = _spin(2, 2160, int(content[1]))
         self.camera = _spin(0, 15, 0)
+        self._camera_profile_path = None
+        self.use_profile = QCheckBox(
+            "Use ONE private camera source profile (RTSP / fisheye / USB / replay)")
+        self.profile_button = QPushButton("Select private camera profile...")
+        self.profile_button.setEnabled(False)
+        self.profile_label = QLabel("No private camera profile selected")
+        self.use_profile.toggled.connect(self.profile_button.setEnabled)
+        self.use_profile.toggled.connect(lambda enabled: self.camera.setEnabled(not enabled))
+        self.profile_button.clicked.connect(self._browse_profile)
         self.x = _spin(-32768, 32768, 0)
         self.y = _spin(-32768, 32768, 0)
         self.settle = _spin(1, 10000, 250)
@@ -58,6 +67,10 @@ class CaptureDialog(QDialog):
             ("Discard camera frames per pattern", self.warmup),
         ):
             form.addRow(label, field)
+
+        form.addRow("Camera source mode", self.use_profile)
+        form.addRow("Select existing private profile", self.profile_button)
+        form.addRow("Selected profile status", self.profile_label)
 
         self.confirm = QCheckBox(
             "I verified the physical projector and X/Y; start camera/output only after OK")
@@ -76,6 +89,20 @@ class CaptureDialog(QDialog):
         if parent:
             self.output.setText(str(Path(parent) / "new-vclone-capture"))
 
+    def _browse_profile(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Choose ONE owner-managed PRIVATE camera profile",
+            "", "Camera source JSON (*.json)")
+        if path:
+            # Never display a private network source, password or local path.
+            # No network or camera is accessed by selecting this file.
+            self._camera_profile_path = path
+            self.profile_label.setText("One private profile selected; OFFLINE validation on OK")
+
+    def selected_camera_profile(self):
+        """Only selected local file path, never persisted in project/log."""
+        return self._camera_profile_path if self.use_profile.isChecked() else None
+
     def _validate_and_accept(self):
         if not self.confirm.isChecked():
             return
@@ -85,6 +112,19 @@ class CaptureDialog(QDialog):
             QMessageBox.warning(
                 self, "Capture refused", "Choose a NEW directory under an existing regular folder.")
             return
+        if self.use_profile.isChecked():
+            if not self._camera_profile_path:
+                QMessageBox.warning(
+                    self, "Capture refused", "Select a private camera profile first.")
+                return
+            from .camera_sources import read_profile
+            try:
+                read_profile(self._camera_profile_path)  # OFFLINE; no camera call
+            except (OSError, ValueError, TypeError):
+                QMessageBox.warning(
+                    self, "Capture refused",
+                    "Private camera profile failed offline validation.")
+                return
         self.accept()
 
     def values(self):
