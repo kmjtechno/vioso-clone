@@ -7,7 +7,7 @@ Network access only when a user explicitly clicks Auto Detect.
 from __future__ import annotations
 
 import ipaddress
-import secrets
+from uuid import uuid4
 import socket
 import time
 import xml.etree.ElementTree as ET
@@ -102,7 +102,8 @@ def _parse_reply(payload, sender):
 def _probe():
     # No scopes/types filter: cameras advertising NetworkVideoTransmitter or
     # tds:Device can both answer, including older ONVIF Profile S devices.
-    message_id = "urn:uuid:" + secrets.token_hex(16)
+    # Strict WS-Discovery clients expect an RFC 4122 hyphenated UUID URN.
+    message_id = "urn:uuid:" + str(uuid4())
     doc = (
         '<?xml version="1.0" encoding="utf-8"?>'
         '<s:Envelope xmlns:s="' + SOAP + '" xmlns:a="' + WSA +
