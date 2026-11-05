@@ -16,6 +16,7 @@ from .ui_shell import build_studio
 from .offline_blend_dialog import OfflineBlendDialog
 from .capture_quality_dialog import CaptureQualityDialog
 from .manual_mesh_editor import MeshEditorDialog, MeshEditorError
+from .calibration_wizard import CalibrationWizard
 from .multi_still_gui import (MultiStillDialog, MultiStillError,
                               load_sizes, present_verified_blend)
 from .projector_still_gui import (ProjectorStillDialog, ProjectorStillError,
@@ -141,6 +142,8 @@ class MainWindow(QMainWindow):
         m.addAction("Save &As...", self.save_project_as)
         m.addAction("&Quit", self.close)
         calib_menu = self.menuBar().addMenu("&Calibration")
+        calib_menu.addAction("Full Guided Calibration Wizard...",
+                             self.open_calibration_wizard)
         calib_menu.addAction("&Setup capture folder and dimensions...", self.setup_scan)
         calib_menu.addAction("&Capture Gray-code from camera...", self.capture_camera)
         calib_menu.addAction("&Select camera corners...", self.select_corners)
@@ -214,6 +217,19 @@ class MainWindow(QMainWindow):
         if f:
             self._guard(self.session.save, f)
 
+
+    def open_calibration_wizard(self):
+        """Real 10-stage guided camera/rig/capture/warp/blend workflow."""
+        if getattr(self, "_active_calibration_wizard", None) is not None:
+            return
+        wizard = CalibrationWizard(self)
+        self._active_calibration_wizard = wizard
+        try:
+            wizard.exec()
+        finally:
+            self._active_calibration_wizard = None
+            wizard.deleteLater()
+            self.refresh()
 
     def setup_scan(self):
         dialog = ScanSetupDialog(self.session.project.scan, self)
