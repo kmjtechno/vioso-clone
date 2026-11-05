@@ -332,7 +332,7 @@ def _choose_profile(profiles, requested):
         return chosen[0][0]
     # For fisheye calibration, do NOT silently select a panorama/substream.
     # Require exactly one largest square resolution (often 2560x2560 on CP+).
-    square = [p for p in profiles if p[1] == p[2]]
+    square = [p for p in profiles if p[1] >= 64 and p[1] == p[2]]
     if not square:
         # V2.5 evidence: CP PLUS returned 27 Media1 entries, most without
         # dimensions, but the real MainStream token MediaProfile00000
