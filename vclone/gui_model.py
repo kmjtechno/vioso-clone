@@ -52,8 +52,11 @@ class Session:
 
     def capture_camera_scan(self, output_dir, projector_size, content_size, camera_index,
                             projector_x, projector_y, settle_ms=250, warmup_frames=2,
-                            confirmed=False):
-        """Opt-in capture and configure only after an intact capture manifest exists."""
+                            confirmed=False, camera_profile_path=None):
+        """Opt-in capture, including selected private M33 source profile if requested.
+
+        Private stream URLs/credentials and owner profile path are never logged.
+        """
         if not confirmed:
             raise SessionError("physical projector display confirmation required")
         pwidth, pheight = validate_size(projector_size, max_width=1920, max_height=1080)
@@ -67,11 +70,24 @@ class Session:
             receipt = capture.capture_opencv(
                 pwidth, pheight, target, camera_index=camera_index,
                 projector_x=projector_x, projector_y=projector_y,
-                settle_ms=settle_ms, warmup_frames=warmup_frames, confirmed=True)
+                settle_ms=settle_ms, warmup_frames=warmup_frames, confirmed=True,
+                camera_profile_path=camera_profile_path)
             # configure_scan also validates the output image and capture manifest.
             self.configure_scan(target, [pwidth, pheight], [cwidth, cheight])
         except (capture.CaptureError, OSError, ValueError, TypeError, SessionError) as exc:
+            if camera_profile_path is not None:
+                # A third-party camera backend may embed the RTSP URI/password
+                # inside an exception. Refuse to log any underlying error.
+                raise SessionError(
+                    "capture not accepted: selected private camera source or "
+                    "projector capture failed; optical acceptance NOT_VERIFIED") from None
             raise SessionError(f"capture not accepted: {exc}") from exc
+        except Exception:
+            if camera_profile_path is not None:
+                raise SessionError(
+                    "capture not accepted: selected private camera source or "
+                    "projector capture failed; optical acceptance NOT_VERIFIED") from None
+            raise
         self._note(f"captured {receipt.pattern_pairs} pattern pairs; hardware acceptance NOT_VERIFIED")
         return receipt
 
