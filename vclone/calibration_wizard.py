@@ -111,7 +111,7 @@ class CalibrationWizard(QDialog):
         self._refresh_clock.setInterval(900)
         self._refresh_clock.timeout.connect(self.refresh_status)
         self._refresh_clock.start()
-        self.refresh_status()
+        self.goto(0)
 
     def _build_ui(self):
         root = QHBoxLayout(self)
@@ -367,7 +367,7 @@ class CalibrationWizard(QDialog):
                 and capture_fingerprint(self._task_source.scan)
                 == receipt["capture_fingerprint"]
             )
-        except (WizardSolveError, KeyError):
+        except (WizardSolveError, KeyError, ValueError, TypeError):
             return False
 
     def _task_succeeded(self, receipt):
@@ -516,7 +516,7 @@ class CalibrationWizard(QDialog):
                 and capture_fingerprint(self.studio.session.project.scan)
                 == self._quality["capture_fingerprint"]
             )
-        except (WizardSolveError, KeyError):
+        except (WizardSolveError, KeyError, ValueError, TypeError):
             return False
 
     def stage_status(self, key):
