@@ -17,7 +17,7 @@ A script is available at
 `scripts/windows/M43-VIOSO-P520-FULL-SOURCE-AND-QA.ps1`. Review it before
 running. The file can be downloaded via ChatGPT or the authenticated GitHub
 repository. It requires the already-created directory
-\`E:\KMJ\Codex\VIOSO-Clone\FullSource\`, Git for Windows and, for
+`E:\KMJ\Codex\VIOSO-Clone\FullSource`, Git for Windows and, for
 optional QA, an installed Python 3 interpreter.
 
 - The default invocation **without** `-Execute` only validates and prints
@@ -25,7 +25,7 @@ optional QA, an installed Python 3 interpreter.
 - An explicitly approved `-Execute` verifies GitHub remote main's
   **exact 40-character SHA** before clone. Any moved SHA fails closed.
 - The clone is a fresh **child of the owner-selected project folder**:
-  \`E:\KMJ\Codex\VIOSO-Clone\FullSource\VIOSO-Clone-FullSource-<first12SHA>\`.
+  `E:\KMJ\Codex\VIOSO-Clone\FullSource\VIOSO-Clone-FullSource-<first12SHA>`.
   If the destination exists (including a partial prior attempt), refuse to
   overwrite it.
   No `reset`, `clean`, `pull` or mutation of the original dirty checkout.
