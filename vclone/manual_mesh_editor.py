@@ -10,7 +10,7 @@ from copy import deepcopy
 import math
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QPen, QBrush
+from PySide6.QtGui import QColor, QPen, QBrush, QPainter
 from PySide6.QtWidgets import (
     QDialog, QDoubleSpinBox, QFormLayout, QGraphicsItem,
     QGraphicsScene, QGraphicsView, QHBoxLayout, QLabel,
@@ -71,7 +71,7 @@ class MeshEditorDialog(QDialog):
         self.scene.selectionChanged.connect(self._on_selected)
         self.view = QGraphicsView(self.scene)
         self.view.setMinimumWidth(580)
-        self.view.setRenderHint(self.view.renderHints().__class__.Antialiasing, True)
+        self.view.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         contents.addWidget(self.view, 1)
         sidebar = QWidget()
         side = QVBoxLayout(sidebar)
