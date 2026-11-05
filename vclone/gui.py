@@ -30,14 +30,18 @@ class CameraProbeWorker(QThread):
                                  else str(private_profile))
 
     def run(self):
-        from .camera_frame_probe import camera_frame_probe
+        from .camera_frame_probe import CameraProbeError, camera_frame_probe
 
         try:
             receipt = camera_frame_probe(
                 self._private_profile, confirmed=True, frames=6, warmup=1)
+        except CameraProbeError as exc:
+            # Exception contents, native URLs, account/credentials and host
+            # must never traverse Qt threads. Only an allowlisted fixed code.
+            self.failed.emit(exc.code)
+            return
         except Exception:
-            # Native OpenCV / plugin errors may contain a private RTSP URL.
-            self.failed.emit("Selected camera frame probe failed; check local source/backend.")
+            self.failed.emit("CAMERA_PROBE_FAILED")
             return
         self.report_ready.emit(receipt)
 
@@ -69,7 +73,9 @@ class MainWindow(QMainWindow):
 
     def refresh(self):
         s = self.session
-        self.setWindowTitle(f"VIOSO Clone - {s.project.name}{' *' if s.dirty else ''}")
+        self.setWindowTitle(
+            f"VIOSO Clone - {s.project.name}{' *' if s.dirty else ''} "
+            "[M55 camera diagnostics · unsigned alpha]")
         self.log_view.setPlainText("\n".join(s.log))
         # A selected folder is not a calibrated rig, never display hardware PASS.
         if s.project.scan.get("dir"):
@@ -325,12 +331,22 @@ class MainWindow(QMainWindow):
         self.refresh()
 
     def _camera_probe_failed(self, _message):
-        # Never emit backend exceptions, file paths or credential-bearing URLs.
+        # Only fixed, reviewed codes are shown. `_message` might be supplied
+        # by a synthetic worker, native OpenCV plugin or third-party adapter.
+        # Never interpolate arbitrary error text, IPs, RTSP URLs or secrets.
+        from .camera_diagnostics import SCHEMA, safe_failure
+        code, stage, guidance = safe_failure(_message)
         self.camera_status_label.setText("PROBE FAILED · NOT VERIFIED")
-        self.session._note("camera-only frame probe failed; hardware acceptance NOT_VERIFIED")
+        self.session._note(
+            f"camera-only frame probe failed; code={code}; "
+            "hardware acceptance NOT_VERIFIED")
         QMessageBox.warning(
             self, "Camera-only preflight",
-            "Selected camera could not be probed safely. No optical calibration was accepted.")
+            f"Failure stage: {stage}\n"
+            f"Diagnostic code: {code}\n\n"
+            f"{guidance}\n\n"
+            f"Schema: {SCHEMA}\n"
+            "No projector operation. No optical calibration was accepted.")
         self.refresh()
 
     def _camera_probe_finished(self):
