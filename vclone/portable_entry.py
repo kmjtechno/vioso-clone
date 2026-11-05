@@ -38,6 +38,7 @@ def portable_main(argv=None):
                 "Probe selected camera (explicit consent)...",
                 "Connect ONVIF camera (no saved credentials)...",
                 "Present calibrated still on projector (confirmed)…",
+                "Present verified multi-projector blend (confirmed)…",
             }
             if not required.issubset(labels):
                 return 3
