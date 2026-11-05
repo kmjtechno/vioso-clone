@@ -28,6 +28,25 @@ class CameraSourceError(ValueError):
     """Camera profile or selected capture backend was rejected."""
 
 
+class CameraSourceStageError(CameraSourceError):
+    """Fixed classification, never a URI, account, native error or password."""
+
+    def __init__(self, code):
+        allowed = {
+            "ONVIF_AUTH_REJECTED",
+            "ONVIF_CONTROL_UNREACHABLE_OR_TLS",
+            "ONVIF_PROFILE_SELECTION_FAILED",
+            "ONVIF_STREAM_URI_UNAVAILABLE",
+            "ONVIF_NEGOTIATION_FAILED",
+            "RTSP_DECODER_OPEN_FAILED",
+            "RTSP_TIMEOUT_UNAVAILABLE",
+        }
+        if code not in allowed:
+            code = "ONVIF_NEGOTIATION_FAILED"
+        self.code = code
+        super().__init__("selected camera source stage failed")
+
+
 def _safe_path(value):
     if not isinstance(value, str) or not value or len(value) > 2048:
         raise CameraSourceError("camera replay path must be a bounded string")
@@ -177,12 +196,31 @@ def open_camera(profile, *, sdk_adapters=None):
             from .onvif_client import resolve_stream_uri
             try:
                 value = resolve_stream_uri(data["source"])
-            except Exception:
-                # urllib, native XML parsers and optional video backends can
-                # embed the camera host or password in an exception. Never
-                # echo arbitrary failure messages from this trust boundary.
-                raise CameraSourceError(
-                    "selected private ONVIF media stream could not be resolved") from None
+            except Exception as exc:
+                # Never expose native exception text. Recognize only fixed
+                # known ONVIF library errors, otherwise classify generally.
+                from .onvif_client import OnvifError
+                if isinstance(exc, OnvifError):
+                    safe_message = str(exc)
+                    if safe_message == "ONVIF selected camera rejected authentication":
+                        code = "ONVIF_AUTH_REJECTED"
+                    elif safe_message in (
+                        "ONVIF selected camera could not complete media request",
+                    ):
+                        code = "ONVIF_CONTROL_UNREACHABLE_OR_TLS"
+                    elif (safe_message.startswith("no raw-square ONVIF profile")
+                          or safe_message.startswith("ambiguous ONVIF")
+                          or safe_message.startswith("selected ONVIF media profile")
+                          or safe_message.startswith("ONVIF profile list")
+                          or safe_message.startswith("ONVIF camera has no supported")):
+                        code = "ONVIF_PROFILE_SELECTION_FAILED"
+                    elif safe_message == "ONVIF Media1 did not return an RTSP stream URI":
+                        code = "ONVIF_STREAM_URI_UNAVAILABLE"
+                    else:
+                        code = "ONVIF_NEGOTIATION_FAILED"
+                else:
+                    code = "ONVIF_NEGOTIATION_FAILED"
+                raise CameraSourceStageError(code) from None
         else:
             value = _safe_path(data["source"]) if kind == "video_file" else data["source"]
         backend = _api_backend(data["backend"], kind=kind)
@@ -191,7 +229,7 @@ def open_camera(profile, *, sdk_adapters=None):
             # VideoCapture on systems missing this capability.
             if (not hasattr(cv2, "CAP_PROP_OPEN_TIMEOUT_MSEC")
                     or not hasattr(cv2, "CAP_PROP_READ_TIMEOUT_MSEC")):
-                raise CameraSourceError("network camera backend has no bounded timeouts")
+                raise CameraSourceStageError("RTSP_TIMEOUT_UNAVAILABLE")
             timeout = [
                 cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 4000,
                 cv2.CAP_PROP_READ_TIMEOUT_MSEC, 4000,
@@ -199,12 +237,14 @@ def open_camera(profile, *, sdk_adapters=None):
             try:
                 stream = cv2.VideoCapture(value, backend, timeout)
             except (TypeError, cv2.error):
-                raise CameraSourceError("network camera backend cannot enforce timeouts") from None
+                raise CameraSourceStageError("RTSP_TIMEOUT_UNAVAILABLE") from None
         else:
             stream = cv2.VideoCapture(value, backend)
     try:
         if not stream.isOpened():
             stream.release()
+            if kind == "onvif":
+                raise CameraSourceStageError("RTSP_DECODER_OPEN_FAILED")
             raise CameraSourceError("selected camera source is not available")
     except CameraSourceError:
         raise

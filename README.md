@@ -396,3 +396,14 @@ when digest was rejected, and a 27-entry Media1 profile list with
 protocol compatibility guards independently, without copying old passwords
 or weakening TLS. Real CP PLUS camera test remains owner-local and pending.
 See [M54 authentication guide](docs/M54_V25_ONVIF_AUTH_COMPAT.md).
+
+
+## Diagnose CP PLUS camera-only probe failures (M55)
+
+A P520 screenshot showed `PROBE FAILED · NOT VERIFIED` without a usable
+reason. The latest GUI now shows a fixed **Diagnostic code** distinguishing
+ONVIF login/control/profile/RTSP decoder/frame errors and includes
+safe next steps; no IP, RTSP URI, username or password is logged. The window
+title includes `M55 camera diagnostics` so the executable version can be
+identified. This is not evidence of hardware completion. See
+[M55 camera diagnostic guide](docs/M55_ONVIF_CAMERA_STAGE_DIAGNOSTICS.md).

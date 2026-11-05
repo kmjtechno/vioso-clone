@@ -12,12 +12,27 @@ import math
 import cv2
 import numpy as np
 
-from .camera_sources import CameraSourceError, open_camera, read_profile, validate_profile
+from .camera_sources import (
+    CameraSourceError, CameraSourceStageError, open_camera,
+    read_profile, validate_profile,
+)
 from .capture import CaptureError, MAX_CAMERA_PIXELS, _grayscale
 
 
 class CameraProbeError(ValueError):
     """A camera-only preflight was refused; messages contain no source URI."""
+
+    def __init__(self, message, *, code="CAMERA_PROBE_FAILED"):
+        # Only fixed, reviewed constants are allowed as error codes.
+        self.code = code if code in {
+            "CAMERA_PROBE_FAILED", "PROFILE_INVALID",
+            "ONVIF_AUTH_REJECTED", "ONVIF_CONTROL_UNREACHABLE_OR_TLS",
+            "ONVIF_PROFILE_SELECTION_FAILED", "ONVIF_STREAM_URI_UNAVAILABLE",
+            "ONVIF_NEGOTIATION_FAILED", "RTSP_DECODER_OPEN_FAILED",
+            "RTSP_TIMEOUT_UNAVAILABLE", "CAMERA_WARMUP_FAILED",
+            "CAMERA_FRAME_READ_FAILED", "CAMERA_FRAME_FORMAT_INVALID",
+        } else "CAMERA_PROBE_FAILED"
+        super().__init__(message)
 
 
 def _settings(*, confirmed, frames, warmup):
@@ -35,11 +50,15 @@ def _summarize_frame(frame):
     try:
         gray = _grayscale(frame)
     except (CaptureError, cv2.error, TypeError, ValueError) as exc:
-        raise CameraProbeError("camera frame format or pixel budget invalid") from None
+        raise CameraProbeError(
+            "camera frame format or pixel budget invalid",
+            code="CAMERA_FRAME_FORMAT_INVALID") from None
     height, width = gray.shape
     if (not 64 <= width <= 4096 or not 64 <= height <= 4096
             or width * height > MAX_CAMERA_PIXELS):
-        raise CameraProbeError("camera frame dimensions outside bounded scan support")
+        raise CameraProbeError(
+            "camera frame dimensions outside bounded scan support",
+            code="CAMERA_FRAME_FORMAT_INVALID")
     scale = min(1.0, 320.0 / width, 240.0 / height)
     sw = max(16, int(width * scale))
     sh = max(16, int(height * scale))
@@ -50,7 +69,9 @@ def _summarize_frame(frame):
     white = float(np.mean(small >= 253))
     sharpness = float(cv2.Laplacian(pixels, cv2.CV_32F).var())
     if not all(math.isfinite(v) for v in (mean, black, white, sharpness)):
-        raise CameraProbeError("camera frame optical metrics were non-finite")
+        raise CameraProbeError(
+            "camera frame optical metrics were non-finite",
+            code="CAMERA_FRAME_FORMAT_INVALID")
     return (width, height), small, (mean, black, white, sharpness)
 
 
@@ -70,14 +91,20 @@ def camera_frame_probe(camera_profile_path, *, confirmed=False, frames=8, warmup
                    if isinstance(camera_profile_path, dict)
                    else read_profile(camera_profile_path))
     except (CameraSourceError, OSError, ValueError, TypeError) as exc:
-        raise CameraProbeError("private camera source profile refused") from None
+        raise CameraProbeError(
+            "private camera source profile refused", code="PROFILE_INVALID") from None
 
     source_type = profile["type"]
     # The only network access is to the single user-selected camera URL.
     try:
         stream = open_camera(profile)
+    except CameraSourceStageError as exc:
+        raise CameraProbeError(
+            "selected camera could not be opened safely", code=exc.code) from None
     except Exception:
-        raise CameraProbeError("selected camera could not be opened safely") from None
+        raise CameraProbeError(
+            "selected camera could not be opened safely",
+            code="CAMERA_PROBE_FAILED") from None
 
     shapes = []
     brightness, black_fraction, white_fraction, sharpness = [], [], [], []
@@ -89,23 +116,32 @@ def camera_frame_probe(camera_profile_path, *, confirmed=False, frames=8, warmup
                 ready = stream.grab()
             except Exception:
                 # Native decoder/SDK exceptions may contain the private URI.
-                raise CameraProbeError("camera warmup decoder failed") from None
+                raise CameraProbeError(
+                    "camera warmup decoder failed",
+                    code="CAMERA_WARMUP_FAILED") from None
             if not ready:
-                raise CameraProbeError("camera warmup failed")
+                raise CameraProbeError(
+                    "camera warmup failed", code="CAMERA_WARMUP_FAILED")
         for _ in range(frames):
             try:
                 ok, frame = stream.read()
                 if not ok or frame is None:
-                    raise CameraProbeError("camera frame could not be read")
+                    raise CameraProbeError(
+                        "camera frame could not be read",
+                        code="CAMERA_FRAME_READ_FAILED")
                 shape, small, metrics = _summarize_frame(frame)
             except CameraProbeError:
                 raise
             except Exception:
                 # Any untrusted backend can raise an exception with its source
                 # URI/username in the message; do not echo it to the CLI.
-                raise CameraProbeError("camera decoder or frame acquisition failed") from None
+                raise CameraProbeError(
+                    "camera decoder or frame acquisition failed",
+                    code="CAMERA_FRAME_READ_FAILED") from None
             if shapes and shape != shapes[0]:
-                raise CameraProbeError("camera resolution changed during bounded probe")
+                raise CameraProbeError(
+                    "camera resolution changed during bounded probe",
+                    code="CAMERA_FRAME_FORMAT_INVALID")
             shapes.append(shape)
             brightness.append(metrics[0])
             black_fraction.append(metrics[1])
