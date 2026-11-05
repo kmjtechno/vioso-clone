@@ -178,7 +178,7 @@ def _service_url(source):
 
 
 def _capabilities_xaddr(body, source):
-    node = body.find(".//{" + SCHEMA + "}Capabilities/{" + SCHEMA + "}Media/{" + SCHEMA + "}XAddr")
+    node = body.find(".//{" + SCHEMA + "}Media/{" + SCHEMA + "}XAddr")
     # Some firmware uses a different prefix, not a different namespace; ET
     # searches using expanded namespace names.
     if node is None or not node.text:
