@@ -15,7 +15,7 @@ def test_m43_source_and_bounded_arguments():
     assert "M43" in text.splitlines()[0]
     assert "^[a-fA-F0-9]{40}$" in text
     assert "https://github.com/kmjtechno/vioso-clone.git" in text
-    assert "$WorkspaceRoot = 'E:\\KMJ\\Codex'" in text
+    assert "$WorkspaceRoot = 'E:\\KMJ\\Codex\\VIOSO-Clone\\FullSource'" in text
 
 
 def test_m43_default_has_no_network_and_no_writes():
@@ -62,7 +62,10 @@ def test_m43_private_auth_in_memory_only_for_clone():
         "checkout --detach $Sha")
     assert "Write-Output $Token" not in text
     assert "M43_EXISTING_GIT_CONFIG_ENV_REFUSED" in text
-    assert "Push-Location -LiteralPath $Root" in text
+    assert "Push-Location -LiteralPath $SafeGitCwd" in text
+    assert "M45_SAFE_GIT_CONTEXT_UNAVAILABLE" in text
+    assert "M45_GIT_CONTEXT_IS_INSIDE_OWNER_CHECKOUT" in text
+    assert "[IO.Path]::GetTempPath()" in text
 
 
 def test_m43_qa_runs_in_own_virtual_environment_only():
