@@ -56,6 +56,23 @@ def portable_main(argv=None):
                     or window.display_status_label.text() != "NOT MAPPED"
                     or window.scan_status_label.text() != "NOT VERIFIED"):
                 return 7
+            # M63: verify the ACTUAL frozen EXE can instantiate the full
+            # ten-stage wizard and the measured checkerboard lens form
+            # without contacting a camera or writing any owner file.
+            from vclone.calibration_wizard import CalibrationWizard
+            from vclone.fisheye_wizard import FisheyeCalibrationDialog
+            wizard = CalibrationWizard(window)
+            try:
+                if len(wizard.nav) != 10 or wizard._task is not None:
+                    return 8
+                lens = FisheyeCalibrationDialog(None, wizard)
+                try:
+                    if lens._worker is not None or lens.run_button.isEnabled():
+                        return 9
+                finally:
+                    lens.close()
+            finally:
+                wizard.close()
             return 0
         finally:
             window.close()
