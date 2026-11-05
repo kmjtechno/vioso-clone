@@ -427,3 +427,13 @@ choose gamma; opt in to render CPU-only projector PNGs and SHA-256 manifest
 without starting hardware. Existing M14 blend weights, project validation
 and output limits are reused. Physical seam acceptance is not implied.
 See [M57 GUI guide](docs/M57_GUI_OFFLINE_MULTIPROJECTOR_EXPORT.md).
+
+
+## M58 — Gray-code capture quality check in GUI
+
+The Calibration Studio now offers **Check Capture Quality**. Select a real
+existing clone capture folder; M25 inspects manifest/pattern PNGs, contrast,
+decoded-valid-pixel coverage and axis span in a background **read-only**
+worker. Optional local mask/fisheye profiles are supported. No cameras,
+projectors or write operations occur. See
+[M58 guide](docs/M58_GUI_GRAYCODE_CAPTURE_QUALITY.md).
