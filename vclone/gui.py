@@ -246,7 +246,13 @@ class MainWindow(QMainWindow):
         screen, duration_ms = values
         # First screen check: do not even open a content file for a bad display.
         # Target dimensions are checked a second time against rendered pixels.
-        target = screen.geometry()
+        try:
+            target = screen.geometry()
+        except RuntimeError:
+            QMessageBox.warning(
+                self, "Calibrated projector still",
+                "PROJECTOR_STILL_REFUSED. The selected extended display disconnected.")
+            return
         source, _ = QFileDialog.getOpenFileName(
             self, "Choose local content for ONE confirmed projector",
             "", "Images (*.png *.jpg *.jpeg *.bmp)")
@@ -255,7 +261,7 @@ class MainWindow(QMainWindow):
         consent = QMessageBox.question(
             self, "Final projector presentation consent",
             "Display ONE already-calibrated still for at most 10 seconds on "
-            "the selected EXTENDED physical projector?\\n\\n"
+            "the selected EXTENDED physical projector?\n\n"
             f"Target size: {target.width()} x {target.height()}\\n"
             "Press Escape to stop. NO automatic camera access, no saved images, "
             "no optical acceptance or synchronized playback.\\n"
