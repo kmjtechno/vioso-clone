@@ -5,6 +5,7 @@ No real LAN packets, camera frames, images, files or projector activity.
 import os
 import socket
 import xml.etree.ElementTree as ET
+import uuid
 from urllib.request import HTTPDigestAuthHandler, ProxyHandler
 
 import pytest
@@ -146,6 +147,13 @@ def test_wsdiscovery_probe_is_standard_and_only_one_multicast_send():
     assert root.find(".//{" + WSD + "}Probe") is not None
     assert discovery.MULTICAST == ("239.255.255.250", 3702)
     assert b"UsernameToken" not in doc
+    addressing = "http://schemas.xmlsoap.org/ws/2004/08/addressing"
+    value = root.findtext(".//{" + addressing + "}MessageID")
+    assert value is not None and value.startswith("urn:uuid:")
+    parsed = uuid.UUID(value.removeprefix("urn:uuid:"))
+    assert parsed.version == 4
+    assert str(parsed) == value.removeprefix("urn:uuid:")
+    assert len(str(parsed)) == 36
 
 
 def test_discovery_reply_accepts_only_same_host_private_services():
