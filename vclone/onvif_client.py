@@ -19,7 +19,7 @@ import xml.etree.ElementTree as ET
 from urllib.parse import quote, urlsplit, urlunsplit
 from urllib.request import (
     build_opener, HTTPDigestAuthHandler, HTTPPasswordMgrWithDefaultRealm,
-    HTTPRedirectHandler, Request,
+    HTTPRedirectHandler, ProxyHandler, Request,
 )
 from xml.sax.saxutils import escape
 
@@ -156,7 +156,10 @@ def _post(url, source, action, xml):
     password_mgr = HTTPPasswordMgrWithDefaultRealm()
     password_mgr.add_password(
         None, url, source["username"], source["password"])
-    opener = build_opener(_NoRedirect(), HTTPDigestAuthHandler(password_mgr))
+    # Explicit private LAN control traffic must NOT inherit HTTP(S)_PROXY
+    # environment settings from the desktop or build runner.
+    opener = build_opener(ProxyHandler({}), _NoRedirect(),
+                          HTTPDigestAuthHandler(password_mgr))
     request = Request(
         url, data=_soap(action, source["username"], source["password"], xml),
         headers={"Content-Type": "application/soap+xml; charset=utf-8; action=\""

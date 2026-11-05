@@ -12,7 +12,7 @@ import math
 import cv2
 import numpy as np
 
-from .camera_sources import CameraSourceError, open_camera, read_profile
+from .camera_sources import CameraSourceError, open_camera, read_profile, validate_profile
 from .capture import CaptureError, MAX_CAMERA_PIXELS, _grayscale
 
 
@@ -63,7 +63,12 @@ def camera_frame_probe(camera_profile_path, *, confirmed=False, frames=8, warmup
     """
     _settings(confirmed=confirmed, frames=frames, warmup=warmup)
     try:
-        profile = read_profile(camera_profile_path)
+        # A GUI one-shot ONVIF probe passes an in-memory private profile.
+        # Legacy CLI and GUI can still choose an existing local JSON file.
+        # Validation is always after --confirm-camera and is network-free.
+        profile = (validate_profile(camera_profile_path)
+                   if isinstance(camera_profile_path, dict)
+                   else read_profile(camera_profile_path))
     except (CameraSourceError, OSError, ValueError, TypeError) as exc:
         raise CameraProbeError("private camera source profile refused") from None
 
