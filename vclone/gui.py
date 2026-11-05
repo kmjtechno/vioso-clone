@@ -18,6 +18,7 @@ class CameraProbeWorker(QThread):
     """Only the explicitly selected camera is opened, outside the UI thread."""
 
     report_ready = Signal(dict)
+    preview_ready = Signal(QImage)
     failed = Signal(str)
 
     def __init__(self, private_profile, parent=None):
@@ -27,18 +28,31 @@ class CameraProbeWorker(QThread):
         self._private_profile = (dict(private_profile)
                                  if isinstance(private_profile, dict)
                                  else str(private_profile))
+        self.preview_enabled = False
 
     def run(self):
         from .camera_frame_probe import camera_frame_probe
 
         try:
-            receipt = camera_frame_probe(
-                self._private_profile, confirmed=True, frames=6, warmup=1)
+            if self.preview_enabled:
+                receipt, thumbnail = camera_frame_probe(
+                    self._private_profile, confirmed=True, frames=6,
+                    warmup=1, return_preview=True)
+                height, width = thumbnail.shape
+                frame_image = QImage(
+                    thumbnail.data, width, height, thumbnail.strides[0],
+                    QImage.Format.Format_Grayscale8).copy()
+            else:
+                receipt = camera_frame_probe(
+                    self._private_profile, confirmed=True, frames=6, warmup=1)
+                frame_image = None
         except Exception:
             # Native OpenCV / plugin errors may contain a private RTSP URL.
             self.failed.emit("Selected camera frame probe failed; check local source/backend.")
             return
         self.report_ready.emit(receipt)
+        if frame_image is not None and not frame_image.isNull():
+            self.preview_ready.emit(frame_image)
 
 
 class MainWindow(QMainWindow):
@@ -253,16 +267,20 @@ class MainWindow(QMainWindow):
             self, "Confirm ONE ONVIF camera",
             "Open exactly ONE selected private-LAN ONVIF camera and sample "
             "6 frames after a 1-frame warmup?\n\n"
-            "No projectors will be operated. No images, credentials, "
-            "network URLs or private source profiles will be saved.\n"
+            "No projectors will be operated. A small grayscale preview "
+            "will be shown locally only; no images, credentials, network "
+            "URLs or private source profiles will be saved.\n"
             "Camera network access occurs only after Yes.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No)
         if consent != QMessageBox.StandardButton.Yes:
             return
         worker = CameraProbeWorker(profile, self)
+        worker.preview_enabled = True
         self._camera_probe_worker = worker
         worker.report_ready.connect(self._camera_probe_ready)
+        if hasattr(worker, "preview_ready"):
+            worker.preview_ready.connect(self._camera_preview_ready)
         worker.failed.connect(self._camera_probe_failed)
         worker.finished.connect(self._camera_probe_finished)
         self.session._note(
@@ -336,6 +354,26 @@ class MainWindow(QMainWindow):
         else:
             QMessageBox.warning(self, "Camera-only preflight", details)
         self.refresh()
+
+    def _camera_preview_ready(self, frame_image):
+        """Show ONLY the owner-approved last grayscale frame, never save it."""
+        if not isinstance(frame_image, QImage) or frame_image.isNull():
+            return
+        if (frame_image.width() > 320 or frame_image.height() > 240
+                or frame_image.width() < 16 or frame_image.height() < 16):
+            return
+        preview = QMessageBox(self)
+        preview.setWindowTitle("ONVIF raw-fisheye visual check — not calibrated")
+        preview.setText(
+            "Inspect this ONE local grayscale thumbnail. Confirm that the "
+            "image shape matches the physical camera's original 1O fisheye "
+            "view, not a dewarped panorama. A square resolution alone is "
+            "NOT optical acceptance. This image is not saved to disk.")
+        preview.setIconPixmap(QPixmap.fromImage(frame_image).scaled(
+            480, 480, Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation))
+        preview.setStandardButtons(QMessageBox.StandardButton.Ok)
+        preview.exec()
 
     def _camera_probe_failed(self, _message):
         # Never emit backend exceptions, file paths or credential-bearing URLs.
