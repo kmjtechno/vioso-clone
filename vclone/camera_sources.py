@@ -212,9 +212,13 @@ def open_camera(profile, *, sdk_adapters=None):
                           or safe_message.startswith("ambiguous ONVIF")
                           or safe_message.startswith("selected ONVIF media profile")
                           or safe_message.startswith("ONVIF profile list")
+                          or safe_message.startswith("ONVIF Media2 profile list")
+                          or safe_message.startswith("ONVIF Media2 has no bounded")
+                          or safe_message.startswith("no raw-square Media2 profile")
                           or safe_message.startswith("ONVIF camera has no supported")):
                         code = "ONVIF_PROFILE_SELECTION_FAILED"
-                    elif safe_message == "ONVIF Media1 did not return an RTSP stream URI":
+                    elif safe_message in ("ONVIF Media1 did not return an RTSP stream URI",
+                                               "ONVIF Media2 did not return an RTSP stream URI"):
                         code = "ONVIF_STREAM_URI_UNAVAILABLE"
                     else:
                         code = "ONVIF_NEGOTIATION_FAILED"
